@@ -26,8 +26,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Future<void> _sendPasswordResetOtp() async {
     setState(() => _isLoading = true);
 
-    const String url =
-        "http://127.0.0.1:8000/api/forgot-password/"; // Replace with your endpoint
+    // Clean loopback proxy pointing straight down to your new Django endpoint path
+    const String url = "http://10.0.2.2:8000/api/auth/forgot-password/";
 
     try {
       final response = await http.post(
@@ -36,29 +36,49 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         body: jsonEncode({"email": _emailController.text.trim()}),
       );
 
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Reset code sent successfully!")),
+            SnackBar(
+              content: Text(
+                "Reset verification code sent to your inbox!",
+                style: GoogleFonts.lexend(fontSize: 13),
+              ),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.green.shade800,
+            ),
           );
-          // Pass the email to verification screen context if necessary
-          Navigator.pushNamed(context, '/otp_verify');
+
+          // Smoothly passes email target string to OTP screen state memory stack
+          Navigator.pushNamed(
+            context,
+            '/otp_verify',
+            arguments: _emailController.text.trim(),
+          );
         }
       } else {
-        final Map<String, dynamic> errorData = jsonDecode(response.body);
-        _showSnackBar(errorData['message'] ?? "Email not found.");
+        // Captures clean precise errors sent back from Django view exceptions handling blocks
+        _showSnackBar(responseData['error'] ?? "Email identity trace missing.");
       }
     } catch (e) {
-      _showSnackBar("Could not connect to authentication services.");
+      _showSnackBar(
+        "Could not establish communication with validation servers.",
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.lexend(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.red.shade800,
+      ),
+    );
   }
 
   @override
@@ -101,26 +121,47 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return "Email is required";
-                      if (!v.contains('@'))
-                        return "Enter a valid email address";
+                      if (v == null || v.isEmpty) {
+                        return "Email parameters required";
+                      }
+                      if (!v.contains('@')) {
+                        return "Enter a valid standard email layout";
+                      }
                       return null;
                     },
                     decoration: InputDecoration(
                       labelText: "Email Address",
+                      labelStyle: GoogleFonts.inter(
+                        color: Colors.black38,
+                        fontSize: 13.5,
+                      ),
                       prefixIcon: const Icon(
                         Icons.email_outlined,
                         color: primaryBlue,
+                        size: 20,
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Colors.grey.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Colors.grey.withValues(alpha: 0.15),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
                           color: primaryBlue,
-                          width: 2,
+                          width: 1.5,
                         ),
                       ),
                     ),
@@ -128,7 +169,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   const SizedBox(height: 30),
                   SizedBox(
                     width: double.infinity,
-                    height: 55,
+                    height: 52,
                     child: ElevatedButton(
                       onPressed: _isLoading
                           ? null
@@ -139,17 +180,26 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryBlue,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
                       child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Send OTP',
-                              style: TextStyle(
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
                                 color: Colors.white,
-                                fontSize: 18,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Text(
+                              'Send Verification OTP',
+                              style: GoogleFonts.lexend(
+                                color: Colors.white,
+                                fontSize: 15,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -161,9 +211,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           ),
           Positioned(
             top: 50,
-            left: 20,
+            left: 10,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: primaryBlue, size: 28),
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: primaryBlue,
+                size: 22,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
           ),

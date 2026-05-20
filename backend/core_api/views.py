@@ -5,9 +5,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.hashers import make_password, check_password
-
 # Direct imports from your auto-generated SQL model mappings from database.sql
-from .models import Users, Resident, Roles
+from .models import Users, Resident, Roles, TemporaryOTP
+import random
+from django.core.mail import send_mail
+from django.utils import timezone
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -41,18 +43,35 @@ def register_resident(request):
             is_active=True
         )
 
-        # 4. Concurrently create the tracking link inside the child 'resident' table 
+        # 4. Concurrently link the unique unit allocation mapping inside the child 'resident' table
         new_resident = Resident.objects.create(
             resident_id=f"RS{Resident.objects.count() + 1:03d}",
             user_id=new_user,
-            flat_id_id=data['flat_id'], # Maps to selected flat choice asset identifier
+            flat_id_id=data['flat_id'],
             move_in_date=data.get('move_in_date', '2026-05-20')
         )
 
+        # 5. NEW: Full-Stack OTP Generation and Email Dispatch Flow
+        generated_code = f"{random.randint(1000, 9999)}" # Creates secure random 4-digit code string
+        
+        # Upsert operation tracking user verification token parameters
+        TemporaryOTP.objects.update_or_create(
+            email=new_user.user_email,
+            defaults={'otp_code': generated_code, 'created_at': timezone.now()}
+        )
+
+        # Fire off structural email notification text layout
+        send_mail(
+            subject='Zenith Square - Account Security Verification Code',
+            message=f'Welcome to Zenith Square!\n\nYour secure account registration verification code is: {generated_code}\n\nThis security pin will expire in 5 minutes.',
+            from_email='noreply@zenithsquare.com',
+            recipient_list=[new_user.user_email],
+            fail_silently=False,
+        )
+
         return Response({
-            'success': 'Account system profiles constructed successfully.',
-            'user_id': new_user.user_id,
-            'resident_id': new_resident.resident_id
+            'success': 'Account profile saved. Verification email dispatched.',
+            'email': new_user.user_email
         }, status=status.HTTP_201_CREATED)
 
     except Exception as e:
@@ -128,3 +147,82 @@ def change_password(request):
         
     except Users.DoesNotExist:
         return Response({'error': 'User profile context not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_registration_otp(request):
+    """
+    Endpoint: /api/auth/verify-otp/
+    Compares incoming mobile parameters against temporarily cached database models.
+    """
+    email = request.data.get('email')
+    submitted_otp = request.data.get('otp')
+
+    if not email or not submitted_otp:
+        return Response({'error': 'Missing verification parameters: email and otp are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        otp_record = TemporaryOTP.objects.get(email=email)
+
+        # Validation Rule A: Has the time run down?
+        if otp_record.is_expired():
+            return Response({'error': 'This verification code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validation Rule B: Does the incoming string match perfectly?
+        if otp_record.otp_code == submitted_otp:
+            
+            # Activate your user system constraints inside the custom table
+            user_profile = Users.objects.get(user_email=email)
+            user_profile.is_active = True
+            user_profile.save()
+
+            # Clean tracking table cache records to prevent authorization reuse attempts
+            otp_record.delete()
+
+            return Response({'message': 'Identity verified successfully! Account is active.'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Incorrect verification code. Please check and try again.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    except TemporaryOTP.DoesNotExist:
+        return Response({'error': 'No active verification sequence initiated for this address.'}, status=status.HTTP_404_NOT_FOUND)
+    except Users.DoesNotExist:
+        return Response({'error': 'Relational profile account trace missing from server files.'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def request_password_reset(request):
+    """
+    Endpoint: /api/auth/forgot-password/
+    Validates email existence across custom tables, caches an alternative OTP, and sends mail.
+    """
+    email = request.data.get('email')
+
+    if not email:
+        return Response({'error': 'Please provide a registered email address.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Check if user profile records exist under this target email address string
+        user = Users.objects.get(user_email=email)
+
+        # Generate a distinct random reset pin
+        reset_otp = f"{random.randint(1000, 9999)}"
+
+        # Upsert the tracking model session 
+        TemporaryOTP.objects.update_or_create(
+            email=email,
+            defaults={'otp_code': reset_otp, 'created_at': timezone.now()}
+        )
+
+        # Dispatch the password assistance recovery mail layout
+        send_mail(
+            subject='Zenith Square - Password Recovery Assistance',
+            message=f'Hello {user.user_name},\n\nA security request was initiated to reset your account password.\n\nYour 4-digit verification code is: {reset_otp}\n\nIf you did not request this modification, please ignore this notice.',
+            from_email='security@zenithsquare.com',
+            recipient_list=[email],
+            fail_silently=False,
+        )
+
+        return Response({'success': True, 'message': 'Reset code sent successfully!'}, status=status.HTTP_200_OK)
+
+    except Users.DoesNotExist:
+        return Response({'error': 'No account profile matched this email address.'}, status=status.HTTP_404_NOT_FOUND)

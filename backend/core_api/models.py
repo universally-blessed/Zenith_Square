@@ -6,6 +6,18 @@
 #   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
+from django.utils import timezone
+import datetime
+
+class TemporaryOTP(models.Model):
+    """ Custom table tracking system generated registration validation strings """
+    email = models.EmailField(unique=True)
+    otp_code = models.CharField(max_length=4)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        # The OTP code is programmatically valid for exactly 5 minutes
+        return timezone.now() > self.created_at + datetime.timedelta(minutes=5)
 
 
 class Admin(models.Model):

@@ -14,68 +14,85 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // Controllers to track user input
-  final TextEditingController _emailController = TextEditingController();
+  // Realigned to target user_phone per SQL schema dictionary constraints
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   static const Color primaryBlue = Color(0xFF1A237E);
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  // --- API Integration Method ---
+  // --- Re-architected API Integration Method ---
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
 
-    // Use 10.0.2.2 for Android Emulator, 127.0.0.1 for iOS
-    const String url = "http://10.0.2.2:8000/api/login/";
+    // 10.0.2.2 points to local loopback port on Android emulator environments
+    const String url = "http://10.0.2.2:8000/api/auth/login/";
 
     try {
       final response = await http.post(
         Uri.parse(url),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "email": _emailController.text.trim(),
+          "user_phone": _phoneController.text
+              .trim(), // Synchronized key matching Django request.data.get()
           "password": _passwordController.text,
         }),
       );
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        // 1. EXTRACT JWT TOKENS
-        // Your backend returns tokens in a nested 'tokens' object
-        String accessToken = responseData['tokens']['access'];
-        //        String refreshToken = responseData['tokens']['refresh'];
-
-        // 2. TODO: Store tokens securely
-        // You can use the 'flutter_secure_storage' package here to keep the user logged in
-        print("Access Token: $accessToken");
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        // Dynamic Role Extraction mapping out Role-Based Access Control paths
+        String assignedRole = responseData['role'] ?? 'resident';
+        String userName = responseData['user_name'] ?? 'User';
 
         if (mounted) {
-          _showSnackBar(responseData['message'] ?? "Welcome back!");
-          // Navigate to the landing page or dashboard
-          Navigator.pushReplacementNamed(context, '/resident_home');
+          _showSnackBar("Welcome back, $userName!");
+
+          // Role-Based Access Control (RBAC) routing logic branches
+          if (assignedRole == 'resident') {
+            // Directs resident into your new BottomNavigationBar frame shell holder
+            Navigator.pushReplacementNamed(context, '/home');
+          } else if (assignedRole == 'security') {
+            Navigator.pushReplacementNamed(context, '/security_dashboard');
+          } else {
+            _showSnackBar(
+              "Access tier not configured for this device layout framework.",
+            );
+          }
         }
       } else {
-        // Backend returns error messages in the 'message' key
-        _showSnackBar(
-          responseData['message'] ?? "Login failed. Check credentials.",
-        );
+        // Captures clean error explanation rows formulated from your views exceptions
+        if (mounted) {
+          _showSnackBar(
+            responseData['error'] ?? "Login rejected. Check entry details.",
+          );
+        }
       }
     } catch (e) {
-      _showSnackBar("Could not connect to server. Check your backend.");
+      if (mounted) {
+        _showSnackBar("Could not establish server connection interface ports.");
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF323232),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -89,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
               key: _formKey,
               child: Column(
                 children: [
-                  // Blue header area
+                  // Premium Brand Header area matching Login template visuals
                   Container(
                     height: 280,
                     width: double.infinity,
@@ -115,27 +132,34 @@ class _LoginPageState extends State<LoginPage> {
                     padding: const EdgeInsets.all(30),
                     child: Column(
                       children: [
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 20),
+                        // Field modified to gather standard validation phone numbers
                         _loginInput(
-                          "Email",
-                          Icons.email_outlined,
-                          controller: _emailController,
+                          "Contact Phone Number",
+                          Icons.phone_android_outlined,
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          maxLength: 10,
                           validator: (v) {
-                            if (v == null || v.isEmpty)
-                              return "Please enter email";
-                            if (!v.contains('@')) return "Enter a valid email";
+                            if (v == null || v.isEmpty) {
+                              return "Please enter your registered phone number";
+                            }
+                            if (v.length != 10) {
+                              return "Phone number must be exactly 10 digits";
+                            }
                             return null;
                           },
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         _loginInput(
                           "Password",
                           Icons.lock_outline,
                           isPassword: true,
                           controller: _passwordController,
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return "Please enter password";
+                            }
                             return null;
                           },
                         ),
@@ -149,17 +173,17 @@ class _LoginPageState extends State<LoginPage> {
                             child: Text(
                               "Forgot Password?",
                               style: GoogleFonts.inter(
-                                color: primaryBlue.withOpacity(0.8),
+                                color: primaryBlue.withValues(alpha:0.8),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
-                          height: 55,
+                          height: 52,
                           child: ElevatedButton(
                             onPressed: _isLoading
                                 ? null
@@ -171,24 +195,31 @@ class _LoginPageState extends State<LoginPage> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryBlue,
                               foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.shade200,
+                              elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
                               ),
                             ),
                             child: _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white,
+                                ? const SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
                                   )
-                                : const Text(
+                                : Text(
                                     'Login',
-                                    style: TextStyle(
-                                      fontSize: 18,
+                                    style: GoogleFonts.lexend(
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
                         TextButton(
                           onPressed: () => Navigator.pushReplacementNamed(
                             context,
@@ -196,9 +227,10 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           child: RichText(
                             text: TextSpan(
-                              style: const TextStyle(
-                                color: Colors.grey,
+                              style: GoogleFonts.inter(
+                                color: Colors.black38,
                                 fontSize: 14,
+                                fontWeight: FontWeight.w500,
                               ),
                               children: [
                                 const TextSpan(text: "Not have account? "),
@@ -238,20 +270,31 @@ class _LoginPageState extends State<LoginPage> {
     IconData icon, {
     bool isPassword = false,
     required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+    int? maxLength,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: isPassword,
       validator: validator,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      style: GoogleFonts.inter(fontSize: 15, color: Colors.black87),
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: primaryBlue),
+        counterText:
+            "", // Suppresses character counts length indicators below box boundary
+        prefixIcon: Icon(icon, color: primaryBlue, size: 22),
+        hintStyle: GoogleFonts.inter(color: Colors.black38, fontSize: 14),
         enabledBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey),
+          borderSide: BorderSide(color: Color(0xFFE0E0E0), width: 1.5),
         ),
         focusedBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: primaryBlue, width: 2),
+        ),
+        errorBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.red.shade400, width: 1.5),
         ),
       ),
     );

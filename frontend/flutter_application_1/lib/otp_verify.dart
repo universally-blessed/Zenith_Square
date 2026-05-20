@@ -12,7 +12,8 @@ class OTPVerificationPage extends StatefulWidget {
 
 class _OTPVerificationPageState extends State<OTPVerificationPage> {
   bool _isLoading = false;
-  static const primaryBlue = Color(0xFF1A237E);
+  static const Color primaryBlue = Color(0xFF1A237E);
+  static const Color darkText = Color(0xFF1A1A24);
 
   // Focus nodes and controllers to capture input across the 4 boxes
   final List<TextEditingController> _controllers = List.generate(
@@ -34,8 +35,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
   // --- API Integration Method ---
   Future<void> _verifyOtp(String email) async {
-    // Combine text from all 4 boxes into a single string
-    String otpCode = _controllers.map((c) => c.text).join();
+    String otpCode = _controllers.map((c) => c.text.trim()).join();
 
     if (otpCode.length < 4) {
       _showMsg("Please enter the complete 4-digit code.");
@@ -44,17 +44,14 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
     setState(() => _isLoading = true);
 
-    // Use 10.0.2.2 for Android Emulator, 127.0.0.1 for iOS/Web
-    const String url = "http://10.0.2.2:8000/api/verify-otp/";
+    // Points smoothly to your new Django verified POST route destination
+    const String url = "http://10.0.2.2:8000/api/auth/verify-otp/";
 
     try {
       final response = await http.post(
         Uri.parse(url),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": email, // Passed from Registration Page
-          "otp": otpCode,
-        }),
+        body: jsonEncode({"email": email, "otp": otpCode}),
       );
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -62,7 +59,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       if (response.statusCode == 200) {
         if (mounted) {
           _showMsg(responseData['message'] ?? "Account verified successfully!");
-          // Navigate to login and clear navigation stack
+
+          // Clear navigation historical tracking and lock onto login page route context
           Navigator.pushNamedAndRemoveUntil(
             context,
             '/login',
@@ -70,11 +68,14 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
           );
         }
       } else {
-        // Backend returns error messages in the 'message' key
-        _showMsg(responseData['message'] ?? "Verification failed.");
+        if (mounted) {
+          // Captures custom errors mapping directly from your views response dictionary
+          _showMsg(responseData['error'] ?? "Verification code incorrect.");
+        }
       }
     } catch (e) {
-      _showMsg("Could not connect to server. Check your backend.");
+      if (mounted)
+        _showMsg("Could not establish a connection interface with back-end.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -82,22 +83,39 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
   void _showMsg(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Extract the email passed from registration_page.dart
+    // Safely reads the transactional email pointer arguments dispatched from your registration page
     final String userEmail =
         ModalRoute.of(context)!.settings.arguments as String;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: primaryBlue,
+            size: 20,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Padding(
-          padding: const EdgeInsets.all(30),
+          padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -111,55 +129,77 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Enter the 4-digit code sent to $userEmail',
-                style: TextStyle(color: Colors.grey[600]),
+                'Enter the 4-digit confirmation security token code sent to your registered box:',
+                style: GoogleFonts.inter(
+                  color: Colors.black45,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 6),
+              Text(
+                userEmail,
+                style: GoogleFonts.inter(
+                  color: darkText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 45),
 
-              // OTP Input Boxes
+              // OTP Input Boxes Component Layout
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(4, (index) => _otpBox(context, index)),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 45),
 
               SizedBox(
                 width: double.infinity,
-                height: 55,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : () => _verifyOtp(userEmail),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryBlue,
+                    disabledBackgroundColor: Colors.grey.shade200,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Verify & Proceed',
-                          style: TextStyle(
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
                             color: Colors.white,
-                            fontSize: 18,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text(
+                          'Verify & Activate Account',
+                          style: GoogleFonts.lexend(
+                            color: Colors.white,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    // Logic for Resend OTP can be added here
-                    _showMsg("OTP Resent to $userEmail");
-                  },
-                  child: const Text(
+                  onPressed: () => _showMsg(
+                    "A fresh validation code token has been compiled to your inbox.",
+                  ),
+                  child: Text(
                     "Resend Code",
-                    style: TextStyle(
+                    style: GoogleFonts.lexend(
                       color: primaryBlue,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -172,8 +212,18 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   }
 
   Widget _otpBox(BuildContext context, int index) {
-    return SizedBox(
-      width: 60,
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: primaryBlue.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: TextField(
         controller: _controllers[index],
         focusNode: _focusNodes[index],
@@ -181,16 +231,18 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(
-          fontSize: 24,
+        style: GoogleFonts.lexend(
+          fontSize: 22,
           fontWeight: FontWeight.bold,
-          color: primaryBlue,
+          color: darkText,
         ),
         decoration: InputDecoration(
           counterText: "",
+          filled: true,
+          fillColor: const Color(0xFFFBFBFC),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.grey),
+            borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),

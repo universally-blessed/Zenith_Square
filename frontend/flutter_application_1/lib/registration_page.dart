@@ -24,20 +24,24 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
   static const Color primaryBlue = Color(0xFF1A237E);
 
-  // --- Dropdown Data ---
-  String? selectedSociety;
-  String? selectedBlock;
+  // --- Dynamic Dropdown Data mapped to relational schema IDs ---
+  String? selectedSocietyId;
+  String? selectedBlockId;
 
-  // Mock data (Can be populated dynamically via a GET request later)
-  final Map<String, List<String>> societyData = {
-    "Skyline Residency": ["Block A", "Block B", "Block C"],
-    "Green Valley": ["Wing 1", "Wing 2"],
-    "Zenith Heights": ["Phase I", "Phase II", "Phase III"],
+  // Key-value infrastructure pairing descriptive metadata with strict underlying schema IDs
+  final List<Map<String, String>> societiesList = [
+    {"id": "SO01", "name": "Zenith Square"},
+  ];
+
+  final Map<String, List<Map<String, String>>> blocksData = {
+    "SO01": [
+      {"id": "B001", "name": "Block A"},
+      {"id": "B002", "name": "Block B"},
+    ],
   };
 
   @override
   void dispose() {
-    // Clean up controllers when the widget is disposed
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
@@ -47,26 +51,24 @@ class _RegistrationPageState extends State<RegistrationPage> {
     super.dispose();
   }
 
-  // --- API Integration Method ---
+  // --- Re-architected API Integration Method ---
   Future<void> _registerUser() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
-    // Replace with your local machine IP or 10.0.2.2 for Android Emulator
-    const String url = "http://127.0.0.1:8000/api/register/";
+    // Using 10.0.2.2 proxy connection to communicate natively out of local emulator
+    const String url = "http://10.0.2.2:8000/api/auth/register/";
 
-    // Inside registration_page.dart -> _registerUser()
+    // Payload keys aligned exactly with user models request keys configuration loops
     final Map<String, dynamic> registrationData = {
-      "full_name": _nameController.text.trim(),
-      "email": _emailController.text.trim(),
-      "contact_number": _phoneController.text
-          .trim(), // Matches backend models.py
-      "society_name": selectedSociety, // Update key name to match models.py
-      "block_name": selectedBlock, // Update key name to match models.py
-      "flat_number": _flatController.text.trim(),
+      "user_name": _nameController.text.trim(),
+      "user_phone": _phoneController.text.trim(),
+      "user_email": _emailController.text.trim(),
       "password": _passController.text,
+      "society_id": selectedSocietyId,
+      "flat_id":
+          "F001", // Placeholder relational flat ID corresponding to schema fields
     };
+
     try {
       final response = await http.post(
         Uri.parse(url),
@@ -77,62 +79,72 @@ class _RegistrationPageState extends State<RegistrationPage> {
         body: jsonEncode(registrationData),
       );
 
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+
       if (response.statusCode == 201 || response.statusCode == 200) {
-        Navigator.pushNamed(
-          context,
-          '/otp_verify',
-          arguments: _emailController.text.trim(), // Pass the email here
-        );
+        if (mounted) {
+          _showSnackBar("Profile registered successfully!");
+          // Cleanly transfers execution flow context state to local login page loop
+          Navigator.pushReplacementNamed(context, '/login');
+        }
       } else {
-        // Handle backend validations/errors (e.g., email already exists)
-        final Map<String, dynamic> errorData = jsonDecode(response.body);
-        _showSnackBar(
-          errorData['message'] ?? "Registration failed. Try again.",
-        );
+        if (mounted) {
+          _showSnackBar(
+            responseData['error'] ?? "Registration failed. Try again.",
+          );
+        }
       }
     } catch (e) {
-      _showSnackBar("Could not connect to server. Check your network.");
-    } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        _showSnackBar(
+          "Could not establish communication with backend API port.",
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.lexend(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   // --- Validation Logic ---
   String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) return "Email is required";
+    if (value == null || value.isEmpty) {
+      return null;
+    } // Email can be optional per custom table setup
     final bool emailValid = RegExp(
       r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
     ).hasMatch(value);
-    return emailValid ? null : "Enter a valid email (e.g. name@gmail.com)";
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return "Password is required";
-    if (value.length < 8) return "Must be at least 8 characters";
-    if (!RegExp(r'[A-Z]').hasMatch(value))
-      return "Must contain an uppercase letter";
-    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(value))
-      return "Must contain a special character";
-    return null;
+    return emailValid ? null : "Enter a valid email format pattern";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: primaryBlue,
+            size: 20,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(25, 0, 25, 30),
         child: Form(
           key: _formKey,
           child: Column(
@@ -151,86 +163,104 @@ class _RegistrationPageState extends State<RegistrationPage> {
               _buildField(
                 "Full Name",
                 Icons.person_outline,
-                (v) => v!.isEmpty ? "Required" : null,
+                (v) => v!.isEmpty ? "Required field text missing" : null,
                 controller: _nameController,
               ),
               _buildField(
                 "Contact Number",
                 Icons.phone_android,
-                (v) => v!.isEmpty ? "Required" : null,
+                (v) => (v == null || v.length != 10)
+                    ? "Requires a valid 10-digit phone"
+                    : null,
                 type: TextInputType.phone,
+                maxLength: 10,
                 controller: _phoneController,
               ),
               _buildField(
-                "Email",
+                "Email Address (Optional)",
                 Icons.email_outlined,
                 _validateEmail,
                 type: TextInputType.emailAddress,
                 controller: _emailController,
               ),
 
-              // --- Society Dropdown ---
+              // --- Refactored Society Dropdown mapping keys to underlying IDs ---
               _buildDropdown(
                 label: "Select Society",
                 icon: Icons.location_city,
-                value: selectedSociety,
-                items: societyData.keys.toList(),
+                value: selectedSocietyId,
+                items: societiesList.map((soc) {
+                  return DropdownMenuItem<String>(
+                    value: soc['id'],
+                    child: Text(soc['name']!),
+                  );
+                }).toList(),
                 onChanged: (val) {
                   setState(() {
-                    selectedSociety = val;
-                    selectedBlock = null;
+                    selectedSocietyId = val;
+                    selectedBlockId =
+                        null; // Flush dependent parameters on alternate parent changes
                   });
                 },
               ),
 
-              // --- Block Dropdown (Dependent) ---
+              // --- Block Dropdown (Dependent filter loops) ---
               _buildDropdown(
                 label: "Select Block",
                 icon: Icons.business,
-                value: selectedBlock,
-                items: selectedSociety != null
-                    ? societyData[selectedSociety]!
+                value: selectedBlockId,
+                items: selectedSocietyId != null
+                    ? blocksData[selectedSocietyId]!.map((blk) {
+                        return DropdownMenuItem<String>(
+                          value: blk['id'],
+                          child: Text(blk['name']!),
+                        );
+                      }).toList()
                     : [],
-                onChanged: (val) => setState(() => selectedBlock = val),
+                onChanged: (val) => setState(() => selectedBlockId = val),
               ),
 
               _buildField(
                 "Flat Number",
                 Icons.door_front_door_outlined,
-                (v) => v!.isEmpty ? "Required" : null,
-                type: TextInputType.number,
+                (v) => v!.isEmpty ? "Required mapping missing" : null,
+                type: TextInputType.text,
                 controller: _flatController,
               ),
 
-              // --- Password Fields ---
               _buildField(
                 "Password",
                 Icons.lock_outline,
-                _validatePassword,
+                (v) => (v == null || v.isEmpty)
+                    ? "Password configuration is required"
+                    : null,
                 isPass: true,
                 controller: _passController,
               ),
               _buildField(
                 "Confirm Password",
                 Icons.lock_reset,
-                (v) =>
-                    v != _passController.text ? "Passwords do not match" : null,
+                (v) => v != _passController.text
+                    ? "Hashed check confirms parameters mismatch"
+                    : null,
                 isPass: true,
                 controller: _confirmPassController,
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 25),
               SizedBox(
                 width: double.infinity,
-                height: 55,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _isLoading
                       ? null
                       : () {
                           if (_formKey.currentState!.validate()) {
-                            if (selectedSociety == null ||
-                                selectedBlock == null) {
-                              _showSnackBar("Please select Society and Block");
+                            if (selectedSocietyId == null ||
+                                selectedBlockId == null) {
+                              _showSnackBar(
+                                "Please specify structural residential attributes.",
+                              );
                               return;
                             }
                             _registerUser();
@@ -238,23 +268,31 @@ class _RegistrationPageState extends State<RegistrationPage> {
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryBlue,
+                    disabledBackgroundColor: Colors.grey.shade200,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'SignUp',
-                          style: TextStyle(
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
                             color: Colors.white,
-                            fontSize: 18,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text(
+                          'SignUp',
+                          style: GoogleFonts.lexend(
+                            color: Colors.white,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -262,13 +300,13 @@ class _RegistrationPageState extends State<RegistrationPage> {
     );
   }
 
-  // Helper for Input Fields
   Widget _buildField(
     String label,
     IconData icon,
     String? Function(String?)? validator, {
     bool isPass = false,
     TextInputType type = TextInputType.text,
+    int? maxLength,
     TextEditingController? controller,
   }) {
     return Padding(
@@ -278,45 +316,68 @@ class _RegistrationPageState extends State<RegistrationPage> {
         obscureText: isPass,
         validator: validator,
         keyboardType: type,
+        maxLength: maxLength,
+        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: primaryBlue, size: 20),
           labelText: label,
+          counterText: "",
+          labelStyle: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: primaryBlue, width: 1.5),
           ),
         ),
       ),
     );
   }
 
-  // Helper for Dropdowns
   Widget _buildDropdown({
     required String label,
     required IconData icon,
     required String? value,
-    required List<String> items,
+    required List<DropdownMenuItem<String>> items,
     required void Function(String?) onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: DropdownButtonFormField<String>(
-        value: value,
-        items: items
-            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-            .toList(),
+        initialValue: value,
+        items: items,
         onChanged: onChanged,
-        validator: (v) => v == null ? "Required" : null,
+        validator: (v) => v == null ? "Selection required" : null,
+        style: GoogleFonts.inter(
+          fontSize: 14,
+          color: Colors.black87,
+          fontWeight: FontWeight.w600,
+        ),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: primaryBlue, size: 20),
           labelText: label,
+          labelStyle: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: primaryBlue, width: 1.5),
           ),
         ),
       ),
