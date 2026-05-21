@@ -14,11 +14,12 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // Realigned to target user_phone per SQL schema dictionary constraints
+  // Fully synchronized to query user_phone per your strict database schema constraints
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   static const Color primaryBlue = Color(0xFF1A237E);
+  static const Color darkText = Color(0xFF1A1A24);
 
   @override
   void dispose() {
@@ -27,11 +28,11 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // --- Re-architected API Integration Method ---
+  // --- Core API Login Hook Integration ---
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
 
-    // 10.0.2.2 points to local loopback port on Android emulator environments
+    // Standard emulator local loopback networking proxy address port
     const String url = "http://10.0.2.2:8000/api/auth/login/";
 
     try {
@@ -40,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_phone": _phoneController.text
-              .trim(), // Synchronized key matching Django request.data.get()
+              .trim(), // Key matches Django view expectation exactly
           "password": _passwordController.text,
         }),
       );
@@ -48,36 +49,32 @@ class _LoginPageState extends State<LoginPage> {
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 && responseData['success'] == true) {
-        // Dynamic Role Extraction mapping out Role-Based Access Control paths
         String assignedRole = responseData['role'] ?? 'resident';
-        String userName = responseData['user_name'] ?? 'User';
+        String userName = responseData['user_name'] ?? 'Member';
 
         if (mounted) {
           _showSnackBar("Welcome back, $userName!");
 
-          // Role-Based Access Control (RBAC) routing logic branches
+          // Role-Based Access Control (RBAC) routing logic split paths
           if (assignedRole == 'resident') {
-            // Directs resident into your new BottomNavigationBar frame shell holder
-            Navigator.pushReplacementNamed(context, '/home');
+            Navigator.pushReplacementNamed(
+              context,
+              '/home',
+            ); // Directs to ResidentNavigationHolder
           } else if (assignedRole == 'security') {
             Navigator.pushReplacementNamed(context, '/security_dashboard');
           } else {
-            _showSnackBar(
-              "Access tier not configured for this device layout framework.",
-            );
+            _showSnackBar("Access authorization tier mismatch.");
           }
         }
       } else {
-        // Captures clean error explanation rows formulated from your views exceptions
         if (mounted) {
-          _showSnackBar(
-            responseData['error'] ?? "Login rejected. Check entry details.",
-          );
+          _showSnackBar(responseData['error'] ?? "Login credentials rejected.");
         }
       }
     } catch (e) {
       if (mounted) {
-        _showSnackBar("Could not establish server connection interface ports.");
+        _showSnackBar("Could not establish a clean connection interface.");
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -89,7 +86,6 @@ class _LoginPageState extends State<LoginPage> {
       SnackBar(
         content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF323232),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
@@ -99,168 +95,154 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  // Premium Brand Header area matching Login template visuals
-                  Container(
-                    height: 280,
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: primaryBlue,
-                      borderRadius: BorderRadius.only(
-                        bottomLeft: Radius.circular(80),
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Login',
-                        style: GoogleFonts.lexend(
-                          color: Colors.white,
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // Premium Brand Visual Space Area Layout
+              Container(
+                height: 260,
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: primaryBlue,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(80),
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'Login',
+                    style: GoogleFonts.lexend(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-
-                  Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 20),
-                        // Field modified to gather standard validation phone numbers
-                        _loginInput(
-                          "Contact Phone Number",
-                          Icons.phone_android_outlined,
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          maxLength: 10,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return "Please enter your registered phone number";
-                            }
-                            if (v.length != 10) {
-                              return "Phone number must be exactly 10 digits";
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _loginInput(
-                          "Password",
-                          Icons.lock_outline,
-                          isPassword: true,
-                          controller: _passwordController,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return "Please enter password";
-                            }
-                            return null;
-                          },
-                        ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () => Navigator.pushNamed(
-                              context,
-                              '/forgot_password',
-                            ),
-                            child: Text(
-                              "Forgot Password?",
-                              style: GoogleFonts.inter(
-                                color: primaryBlue.withValues(alpha:0.8),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: _isLoading
-                                ? null
-                                : () {
-                                    if (_formKey.currentState!.validate()) {
-                                      _handleLogin();
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryBlue,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: Colors.grey.shade200,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    ),
-                                  )
-                                : Text(
-                                    'Login',
-                                    style: GoogleFonts.lexend(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        TextButton(
-                          onPressed: () => Navigator.pushReplacementNamed(
-                            context,
-                            '/register',
-                          ),
-                          child: RichText(
-                            text: TextSpan(
-                              style: GoogleFonts.inter(
-                                color: Colors.black38,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              children: [
-                                const TextSpan(text: "Not have account? "),
-                                TextSpan(
-                                  text: "Signup here",
-                                  style: TextStyle(
-                                    color: primaryBlue,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 30.0,
+                  vertical: 40.0,
+                ),
+                child: Column(
+                  children: [
+                    _loginInput(
+                      "Contact Phone Number",
+                      Icons.phone_android_outlined,
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      maxLength: 10,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return "Phone parameter required";
+                        }
+                        if (v.trim().length != 10) {
+                          return "Must be exactly 10 digits";
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    _loginInput(
+                      "Password",
+                      Icons.lock_outline,
+                      isPassword: true,
+                      controller: _passwordController,
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? "Please enter your password"
+                          : null,
+                    ),
+
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/forgot_password'),
+                        child: Text(
+                          "Forgot Password?",
+                          style: GoogleFonts.inter(
+                            color: primaryBlue.withValues(alpha: 0.8),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 35),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                if (_formKey.currentState!.validate()) {
+                                  _handleLogin();
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryBlue,
+                          disabledBackgroundColor: Colors.grey.shade200,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : Text(
+                                'Login',
+                                style: GoogleFonts.lexend(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/register'),
+                      child: RichText(
+                        text: TextSpan(
+                          style: GoogleFonts.inter(
+                            color: Colors.black38,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          children: const [
+                            TextSpan(text: "New to Zenith Square? "),
+                            TextSpan(
+                              text: "Signup here",
+                              style: TextStyle(
+                                color: primaryBlue,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Positioned(
-            top: 40,
-            left: 15,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -280,13 +262,20 @@ class _LoginPageState extends State<LoginPage> {
       validator: validator,
       keyboardType: keyboardType,
       maxLength: maxLength,
-      style: GoogleFonts.inter(fontSize: 15, color: Colors.black87),
+      style: GoogleFonts.inter(
+        fontSize: 15,
+        color: darkText,
+        fontWeight: FontWeight.w600,
+      ),
       decoration: InputDecoration(
         hintText: hint,
-        counterText:
-            "", // Suppresses character counts length indicators below box boundary
-        prefixIcon: Icon(icon, color: primaryBlue, size: 22),
-        hintStyle: GoogleFonts.inter(color: Colors.black38, fontSize: 14),
+        counterText: "",
+        prefixIcon: Icon(icon, color: primaryBlue, size: 20),
+        hintStyle: GoogleFonts.inter(
+          color: Colors.black38,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w400,
+        ),
         enabledBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: Color(0xFFE0E0E0), width: 1.5),
         ),

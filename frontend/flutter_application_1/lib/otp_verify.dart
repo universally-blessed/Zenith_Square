@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../api_services.dart';
 
 class OTPVerificationPage extends StatefulWidget {
   const OTPVerificationPage({super.key});
@@ -44,22 +43,13 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
     setState(() => _isLoading = true);
 
-    // Points smoothly to your new Django verified POST route destination
-    const String url = "http://10.0.2.2:8000/api/auth/verify-otp/";
-
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"email": email, "otp": otpCode}),
-      );
+      // 💡 REFACTORED: Use the global configuration setup inside ApiService instead of raw http calls
+      final response = await ApiService.verifyRegistrationOTP(email, otpCode);
 
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
+      if (response['success'] == true) {
         if (mounted) {
-          _showMsg(responseData['message'] ?? "Account verified successfully!");
-
+          _showMsg(response['message'] ?? "Account verified successfully!");
           // Clear navigation historical tracking and lock onto login page route context
           Navigator.pushNamedAndRemoveUntil(
             context,
@@ -69,13 +59,13 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         }
       } else {
         if (mounted) {
-          // Captures custom errors mapping directly from your views response dictionary
-          _showMsg(responseData['error'] ?? "Verification code incorrect.");
+          _showMsg(response['error'] ?? "Verification code incorrect.");
         }
       }
     } catch (e) {
-      if (mounted)
-        _showMsg("Could not establish a connection interface with back-end.");
+      if (mounted) {
+        _showMsg("Could not establish a connection interface with backend.");
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -96,7 +86,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   Widget build(BuildContext context) {
     // Safely reads the transactional email pointer arguments dispatched from your registration page
     final String userEmail =
-        ModalRoute.of(context)!.settings.arguments as String;
+        ModalRoute.of(context)!.settings.arguments as String? ??
+        "user@example.com";
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -218,7 +209,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: primaryBlue.withOpacity(0.03),
+            color: primaryBlue.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -242,7 +233,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
           fillColor: const Color(0xFFFBFBFC),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+            borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -252,7 +243,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         onChanged: (value) {
           if (value.length == 1 && index < 3) {
             FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
-          } else if (value.isEmpty && index > 0) {
+          }
+          if (value.isEmpty && index > 0) {
             FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
           }
         },

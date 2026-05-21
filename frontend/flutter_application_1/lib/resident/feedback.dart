@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
 class GiveFeedbackPage extends StatefulWidget {
   const GiveFeedbackPage({super.key});
@@ -12,8 +13,65 @@ class _GiveFeedbackPageState extends State<GiveFeedbackPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
 
-  String _selectedCategory = 'General Suggestion';
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _feedbackController = TextEditingController();
+
+  String _selectedCategory = 'General Suggestion';
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSubmitFeedback() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+
+    // Structure the title to neatly encapsulate the dropdown category inside the complaint row
+    String formattedTitle = "[$_selectedCategory]";
+    String feedbackBody = _feedbackController.text.trim();
+
+    bool success = await ApiService.submitComplaint(
+      _sessionToken,
+      formattedTitle,
+      feedbackBody,
+    );
+
+    setState(() => _isSubmitting = false);
+
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Feedback logged securely with the Society Committee.',
+              style: GoogleFonts.lexend(fontSize: 13),
+            ),
+            backgroundColor: Colors.green.shade800,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to transmit feedback record.',
+              style: GoogleFonts.lexend(fontSize: 13),
+            ),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,128 +93,142 @@ class _GiveFeedbackPageState extends State<GiveFeedbackPage> {
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Share Your Suggestion',
-              style: GoogleFonts.lexend(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: darkText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Submissions are reviewed by committee members during routine monthly syncs.',
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.black45),
-            ),
-            const SizedBox(height: 24),
-
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
-              decoration: _inputDecoration(
-                'Feedback Classification',
-                Icons.thumbs_up_down_outlined,
-              ),
-              items:
-                  [
-                        'General Suggestion',
-                        'Amenity Improvement',
-                        'Security Feedback',
-                        'Cultural Events',
-                      ]
-                      .map(
-                        (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
-                      )
-                      .toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedCategory = val);
-              },
-            ),
-            const SizedBox(height: 20),
-
-            TextFormField(
-              controller: _feedbackController,
-              maxLines: 6,
-              decoration: InputDecoration(
-                labelText: 'Your Suggestion / Description',
-                alignLabelWithHint: true,
-                prefixIcon: const Padding(
-                  padding: EdgeInsets.only(bottom: 90.0),
-                  child: Icon(
-                    Icons.rate_review_outlined,
-                    color: primaryBlue,
-                    size: 20,
-                  ),
-                ),
-                labelStyle: GoogleFonts.inter(
-                  fontSize: 13.5,
-                  color: Colors.black45,
-                ),
-                filled: true,
-                fillColor: const Color(0xFFFBFBFC),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: Colors.grey.withValues(alpha: 0.2),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: Colors.grey.withValues(alpha: 0.15),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: primaryBlue, width: 1.5),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Share Your Suggestion',
+                style: GoogleFonts.lexend(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: darkText,
                 ),
               ),
-            ),
-            const SizedBox(height: 35),
+              const SizedBox(height: 4),
+              Text(
+                'Submissions are reviewed by committee members during routine monthly syncs.',
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.black45),
+              ),
+              const SizedBox(height: 24),
 
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_feedbackController.text.isNotEmpty) {
-                    _feedbackController.clear();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Feedback logged securely with the Society Committee.',
-                          style: GoogleFonts.lexend(fontSize: 13),
-                        ),
-                        backgroundColor: primaryBlue,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    );
-                    Navigator.pop(context);
-                  }
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCategory,
+                decoration: _inputDecoration(
+                  'Feedback Classification',
+                  Icons.thumbs_up_down_outlined,
+                ),
+                items:
+                    [
+                          'General Suggestion',
+                          'Amenity Improvement',
+                          'Security Feedback',
+                          'Cultural Events',
+                        ]
+                        .map(
+                          (cat) =>
+                              DropdownMenuItem(value: cat, child: Text(cat)),
+                        )
+                        .toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedCategory = val);
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
+              ),
+              const SizedBox(height: 20),
+
+              TextFormField(
+                controller: _feedbackController,
+                maxLines: 6,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? "Please write your description details."
+                    : null,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: darkText,
                 ),
-                child: Text(
-                  'Submit Suggestion',
-                  style: GoogleFonts.lexend(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                decoration: InputDecoration(
+                  labelText: 'Your Suggestion / Description',
+                  alignLabelWithHint: true,
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.only(bottom: 90.0),
+                    child: Icon(
+                      Icons.rate_review_outlined,
+                      color: primaryBlue,
+                      size: 20,
+                    ),
+                  ),
+                  labelStyle: GoogleFonts.inter(
+                    fontSize: 13.5,
+                    color: Colors.black45,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFFBFBFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: primaryBlue,
+                      width: 1.5,
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.red.shade400,
+                      width: 1.2,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 35),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _handleSubmitFeedback,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryBlue,
+                    disabledBackgroundColor: Colors.grey.shade200,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text(
+                          'Submit Suggestion',
+                          style: GoogleFonts.lexend(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

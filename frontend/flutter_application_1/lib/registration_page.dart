@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../api_services.dart';
 
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});
@@ -14,7 +15,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // --- Controllers for extracting user text input ---
+  // Controllers for extracting user text inputs
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -24,21 +25,33 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
   static const Color primaryBlue = Color(0xFF1A237E);
 
-  // --- Dynamic Dropdown Data mapped to relational schema IDs ---
+  // Dynamic state hooks connected straight to the backend
   String? selectedSocietyId;
   String? selectedBlockId;
 
-  // Key-value infrastructure pairing descriptive metadata with strict underlying schema IDs
-  final List<Map<String, String>> societiesList = [
-    {"id": "SO01", "name": "Zenith Square"},
-  ];
+  List<dynamic> societiesList = [];
+  List<dynamic> blocksList = [];
 
-  final Map<String, List<Map<String, String>>> blocksData = {
-    "SO01": [
-      {"id": "B001", "name": "Block A"},
-      {"id": "B002", "name": "Block B"},
-    ],
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialSocieties();
+  }
+
+  Future<void> _loadInitialSocieties() async {
+    final data = await ApiService.fetchPublicSocieties();
+    setState(() {
+      societiesList = data;
+    });
+  }
+
+  Future<void> _loadDependentBlocks(String societyId) async {
+    final data = await ApiService.fetchPublicBlocks(societyId);
+    setState(() {
+      blocksList = data;
+      selectedBlockId = null; // Flush old blocks when switching society context
+    });
+  }
 
   @override
   void dispose() {
@@ -51,22 +64,19 @@ class _RegistrationPageState extends State<RegistrationPage> {
     super.dispose();
   }
 
-  // --- Re-architected API Integration Method ---
   Future<void> _registerUser() async {
     setState(() => _isLoading = true);
 
-    // Using 10.0.2.2 proxy connection to communicate natively out of local emulator
     const String url = "http://10.0.2.2:8000/api/auth/register/";
 
-    // Payload keys aligned exactly with user models request keys configuration loops
     final Map<String, dynamic> registrationData = {
       "user_name": _nameController.text.trim(),
       "user_phone": _phoneController.text.trim(),
       "user_email": _emailController.text.trim(),
       "password": _passController.text,
       "society_id": selectedSocietyId,
-      "flat_id":
-          "F001", // Placeholder relational flat ID corresponding to schema fields
+      // For presentation safety, we pass the text entry flat mapped directly to your tables
+      "flat_id": _flatController.text.trim().toUpperCase(),
     };
 
     try {
@@ -83,9 +93,13 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         if (mounted) {
-          _showSnackBar("Profile registered successfully!");
-          // Cleanly transfers execution flow context state to local login page loop
-          Navigator.pushReplacementNamed(context, '/login');
+          _showSnackBar("Profile registered successfully! OTP code generated.");
+          Navigator.pushReplacementNamed(
+            context,
+            '/otp_verify',
+            arguments: _emailController.text
+                .trim(), // Passes tracking address context to OTP verification screen
+          );
         }
       } else {
         if (mounted) {
@@ -115,13 +129,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
     );
   }
 
-  // --- Validation Logic ---
   String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return null;
-    } // Email can be optional per custom table setup
+    if (value == null || value.isEmpty) return null;
     final bool emailValid = RegExp(
-      r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+      r"^[a-zA-Z0-9.+_-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+",
     ).hasMatch(value);
     return emailValid ? null : "Enter a valid email format pattern";
   }
@@ -177,46 +188,47 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 controller: _phoneController,
               ),
               _buildField(
-                "Email Address (Optional)",
+                "Email Address",
                 Icons.email_outlined,
                 _validateEmail,
                 type: TextInputType.emailAddress,
                 controller: _emailController,
               ),
 
-              // --- Refactored Society Dropdown mapping keys to underlying IDs ---
+              // --- Dynamic Society Dropdown ---
               _buildDropdown(
                 label: "Select Society",
                 icon: Icons.location_city,
                 value: selectedSocietyId,
                 items: societiesList.map((soc) {
                   return DropdownMenuItem<String>(
-                    value: soc['id'],
-                    child: Text(soc['name']!),
+                    value: soc['id']?.toString(),
+                    child: Text(soc['name']?.toString() ?? ''),
                   );
                 }).toList(),
                 onChanged: (val) {
-                  setState(() {
-                    selectedSocietyId = val;
-                    selectedBlockId =
-                        null; // Flush dependent parameters on alternate parent changes
-                  });
+                  if (val != null) {
+                    setState(() {
+                      selectedSocietyId = val;
+                    });
+                    _loadDependentBlocks(
+                      val,
+                    ); // Dynamically queries blocks for this society
+                  }
                 },
               ),
 
-              // --- Block Dropdown (Dependent filter loops) ---
+              // --- Dynamic Block Dropdown ---
               _buildDropdown(
                 label: "Select Block",
                 icon: Icons.business,
                 value: selectedBlockId,
-                items: selectedSocietyId != null
-                    ? blocksData[selectedSocietyId]!.map((blk) {
-                        return DropdownMenuItem<String>(
-                          value: blk['id'],
-                          child: Text(blk['name']!),
-                        );
-                      }).toList()
-                    : [],
+                items: blocksList.map((blk) {
+                  return DropdownMenuItem<String>(
+                    value: blk['id']?.toString(),
+                    child: Text(blk['name']?.toString() ?? ''),
+                  );
+                }).toList(),
                 onChanged: (val) => setState(() => selectedBlockId = val),
               ),
 
@@ -224,10 +236,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 "Flat Number",
                 Icons.door_front_door_outlined,
                 (v) => v!.isEmpty ? "Required mapping missing" : null,
-                type: TextInputType.text,
                 controller: _flatController,
               ),
-
               _buildField(
                 "Password",
                 Icons.lock_outline,
@@ -240,9 +250,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
               _buildField(
                 "Confirm Password",
                 Icons.lock_reset,
-                (v) => v != _passController.text
-                    ? "Hashed check confirms parameters mismatch"
-                    : null,
+                (v) => v != _passController.text ? "Passwords mismatch" : null,
                 isPass: true,
                 controller: _confirmPassController,
               ),

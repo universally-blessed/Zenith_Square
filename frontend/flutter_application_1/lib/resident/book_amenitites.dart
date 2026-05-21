@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:async'; // Required for high-accuracy frontend countdown stream loops
+import 'dart:async';
+import '../api_services.dart';
 
 class BookAmenitiesPage extends StatefulWidget {
   const BookAmenitiesPage({super.key});
@@ -13,40 +14,23 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
 
-  // High-fidelity active mock tracker mirroring your database state rows (Page 59-60)
-  final List<Map<String, dynamic>> _myBookings = [
-    {
-      'booking_id': 'AB001', // amenity_booking.booking_id
-      'amenity_name': 'Clubhouse Hall', // amenity.amenity_name
-      'booking_date': '2026-05-28',
-      'slots': '04:00 PM - 07:00 PM',
-      'status':
-          'approved_awaiting_payment', // The critical dynamic conditional flag
-      // Simulating a backend timestamp set exactly 45 minutes and 12 seconds from expiration
-      'payment_deadline': DateTime.now().add(
-        const Duration(minutes: 45, seconds: 12),
-      ),
-      'cost': '₹ 1,500.00',
-    },
-    {
-      'booking_id': 'AB002',
-      'amenity_name': 'Amphitheatre',
-      'booking_date': '2026-06-02',
-      'slots': '07:00 PM - 09:00 PM',
-      'status': 'pending', // Awaiting Secretary evaluation signature loops
-      'payment_deadline': null,
-      'cost': '₹ 500.00',
-    },
-  ];
+  // Active secure user token session context variable matching Django backend constraints
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
 
+  List<dynamic> _myBookings = [];
+  bool _isLoading = true;
   Timer? _countdownTimer;
 
   @override
   void initState() {
     super.initState();
-    // Senior Developer Pattern: Start a 1-second interval stream ticker loop to rebuild active clocks
+    _loadLiveReservations();
+
+    // Start a 1-second interval ticker stream loop to rebuild active countdown clocks dynamically
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 
@@ -57,21 +41,51 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
     super.dispose();
   }
 
-  // UTILITY HELPER: Computes time differential leftovers down to text strings natively
-  String _calculateTimeRemaining(DateTime deadline) {
-    final difference = deadline.difference(DateTime.now());
-    if (difference.isNegative) {
-      return "00:00"; // Window systematically run down
+  Future<void> _loadLiveReservations() async {
+    try {
+      final dataset = await ApiService.fetchAmenityBookings(_sessionToken);
+      setState(() {
+        _myBookings = dataset;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnack("Failed to update reservation listings feed.");
     }
-    String minutes = difference.inMinutes
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
-    String seconds = difference.inSeconds
-        .remainder(60)
-        .toString()
-        .padLeft(2, '0');
-    return "$minutes:$seconds remaining";
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // UTILITY HELPER: Computes time differential leftovers down to text strings natively
+  String _calculateTimeRemaining(dynamic deadlineInput) {
+    if (deadlineInput == null) return "00:00";
+    try {
+      DateTime deadline = DateTime.parse(deadlineInput.toString());
+      final difference = deadline.difference(DateTime.now());
+      if (difference.isNegative) {
+        return "00:00";
+      } // Window systematically run down
+
+      String minutes = difference.inMinutes
+          .remainder(60)
+          .toString()
+          .padLeft(2, '0');
+      String seconds = difference.inSeconds
+          .remainder(60)
+          .toString()
+          .padLeft(2, '0');
+      return "$minutes:$seconds remaining";
+    } catch (_) {
+      return "00:00";
+    }
   }
 
   @override
@@ -91,78 +105,105 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24.0),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'My Reservation Statuses',
-                style: GoogleFonts.lexend(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: darkText,
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _showNewRequestDialog(context),
-                icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                label: Text(
-                  'New Request',
-                  style: GoogleFonts.lexend(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+          : RefreshIndicator(
+              onRefresh: _loadLiveReservations,
+              color: primaryBlue,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24.0),
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'My Reservation Statuses',
+                        style: GoogleFonts.lexend(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: darkText,
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showNewRequestDialog(context),
+                        icon: const Icon(
+                          Icons.add,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        label: Text(
+                          'New Request',
+                          style: GoogleFonts.lexend(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryBlue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _myBookings.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 14),
-            itemBuilder: (context, index) {
-              final booking = _myBookings[index];
-              return _buildStateAwareBookingCard(context, booking);
-            },
-          ),
-        ],
-      ),
+                  _myBookings.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 80.0),
+                            child: Text(
+                              'No asset facility reservations logged.',
+                              style: GoogleFonts.inter(
+                                color: Colors.black38,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _myBookings.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 14),
+                          itemBuilder: (context, index) {
+                            final booking = _myBookings[index];
+                            return _buildStateAwareBookingCard(
+                              context,
+                              booking,
+                            );
+                          },
+                        ),
+                ],
+              ),
+            ),
     );
   }
 
-  Widget _buildStateAwareBookingCard(
-    BuildContext context,
-    Map<String, dynamic> booking,
-  ) {
-    final String status = booking['status'];
+  Widget _buildStateAwareBookingCard(BuildContext context, dynamic booking) {
+    final String status = booking['status'] ?? 'pending';
     final bool isAwaitingPayment = status == 'approved_awaiting_payment';
 
     // Check if the timer has theoretically expired locally on device runtime configurations
     bool isExpired = false;
     if (isAwaitingPayment && booking['payment_deadline'] != null) {
-      isExpired = booking['payment_deadline']
-          .difference(DateTime.now())
-          .isNegative;
+      isExpired = DateTime.parse(
+        booking['payment_deadline'].toString(),
+      ).difference(DateTime.now()).isNegative;
     }
 
-    Color statusColor = Colors.orange;
+    Color statusColor = Colors.orange.shade800;
     String statusLabel = 'PENDING APPROVAL';
 
-    if (isAwaitingPayment) {
+    if (status == 'approved') {
+      statusColor = Colors.green;
+      statusLabel = 'CONFIRMED';
+    } else if (isAwaitingPayment) {
       statusColor = isExpired ? Colors.red : Colors.blue.shade700;
       statusLabel = isExpired ? 'EXPIRED' : 'APPROVED - AWAITING PAYMENT';
     }
@@ -193,7 +234,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                booking['booking_id'],
+                booking['booking_id'] ?? '',
                 style: GoogleFonts.lexend(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -219,7 +260,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            booking['amenity_name'],
+            booking['amenity_name'] ?? 'Facility Asset',
             style: GoogleFonts.lexend(
               fontSize: 15,
               fontWeight: FontWeight.bold,
@@ -228,7 +269,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${booking['booking_date']}  •  ${booking['slots']}',
+            "${booking['booking_date']}  •  ${booking['slots']}",
             style: GoogleFonts.inter(
               fontSize: 12,
               color: Colors.black45,
@@ -267,7 +308,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                   onPressed: () => Navigator.pushNamed(
                     context,
                     '/maintenance',
-                  ), // Direct connection down to payment route maps
+                  ), // Direct connection to payment route maps
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green.shade700,
                     shape: RoundedRectangleBorder(
@@ -280,7 +321,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                     elevation: 0,
                   ),
                   child: Text(
-                    'Pay ${booking['cost']}',
+                    "Pay ${booking['cost']}",
                     style: GoogleFonts.lexend(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -299,8 +340,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
   void _showNewRequestDialog(BuildContext context) {
     String selectedAmenity = 'Clubhouse Hall';
     DateTime chosenDate = DateTime.now().add(const Duration(days: 1));
-    String?
-    selectedTimeSlot; // Keep nullable initially to force selecting an available one
+    String? selectedTimeSlot;
 
     // Master array of all possible operational time blocks in Zenith Square
     final List<String> masterTimeSlots = [
@@ -310,12 +350,8 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
       '08:00 PM - 11:00 PM',
     ];
 
-    // SIMULATED BACKEND API RESPONSE: Slots already booked in the database for the selected criteria
-    // In a real app, this map would update via an API call whenever the user changes the date or amenity.
-    final List<String> databaseBookedSlots = [
-      '01:00 PM - 04:00 PM',
-      '08:00 PM - 11:00 PM',
-    ];
+    // In production, you would fetch these dynamically from the server for the chosen day/amenity context
+    final List<String> databaseBookedSlots = ['01:00 PM - 04:00 PM'];
 
     showModalBottomSheet(
       context: context,
@@ -335,7 +371,7 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                 .where((slot) => !databaseBookedSlots.contains(slot))
                 .toList();
 
-            // Auto-select the first available slot if nothing is selected yet to prevent errors
+            // Auto-select the first available slot if nothing is selected yet to prevent selection errors
             if (selectedTimeSlot == null && availableSlots.isNotEmpty) {
               selectedTimeSlot = availableSlots.first;
             }
@@ -385,16 +421,13 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                         .toList(),
                     onChanged: (val) {
                       if (val != null) {
-                        setModalState(() {
-                          selectedAmenity = val;
-                          // In production, trigger an API fetch here to update databaseBookedSlots for this amenity
-                        });
+                        setModalState(() => selectedAmenity = val);
                       }
                     },
                   ),
                   const SizedBox(height: 16),
 
-                  // 2. Date Picker
+                  // 2. Date Picker Trigger Card Configuration
                   InkWell(
                     onTap: () async {
                       DateTime? picked = await showDatePicker(
@@ -407,17 +440,12 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                         setModalState(() {
                           chosenDate = picked;
                           selectedTimeSlot =
-                              null; // Clear selected slot to force recalculation on new date
-                          // In production, trigger an API fetch here to update databaseBookedSlots for this date
+                              null; // Clear selected slot to force recalculation on new date choice
                         });
                       }
                     },
-                    borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFBFBFC),
                         borderRadius: BorderRadius.circular(12),
@@ -433,27 +461,13 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                             size: 20,
                           ),
                           const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Reservation Date',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: Colors.black38,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                "${chosenDate.year}-${chosenDate.month.toString().padLeft(2, '0')}-${chosenDate.day.toString().padLeft(2, '0')}",
-                                style: GoogleFonts.inter(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: darkText,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            "${chosenDate.year}-${chosenDate.month.toString().padLeft(2, '0')}-${chosenDate.day.toString().padLeft(2, '0')}",
+                            style: GoogleFonts.inter(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: darkText,
+                            ),
                           ),
                           const Spacer(),
                           const Icon(
@@ -498,10 +512,9 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                       : DropdownButtonFormField<String>(
                           initialValue: selectedTimeSlot,
                           decoration: _modalInputDecoration(
-                            'Available Time Allocation Window',
+                            'Available Window Slot',
                             Icons.access_time_rounded,
                           ),
-                          // Maps ONLY the filtered slots array to the UI dropdown items
                           items: availableSlots
                               .map(
                                 (slot) => DropdownMenuItem(
@@ -518,40 +531,37 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
                         ),
                   const SizedBox(height: 30),
 
-                  // 4. Submit Button
+                  // 4. Submit Request Action Button
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
                       onPressed: availableSlots.isEmpty
                           ? null
-                          : () {
-                              setState(() {
-                                _myBookings.add({
-                                  'booking_id': 'AB00${_myBookings.length + 1}',
+                          : () async {
+                              Navigator.pop(context);
+                              setState(() => _isLoading = true);
+
+                              bool
+                              success = await ApiService.submitBookingRequest(
+                                _sessionToken,
+                                {
                                   'amenity_name': selectedAmenity,
                                   'booking_date':
                                       "${chosenDate.year}-${chosenDate.month.toString().padLeft(2, '0')}-${chosenDate.day.toString().padLeft(2, '0')}",
                                   'slots': selectedTimeSlot,
-                                  'status': 'pending',
-                                  'payment_deadline': null,
-                                  'cost': selectedAmenity == 'Clubhouse Hall'
-                                      ? '₹ 1,500.00'
-                                      : '₹ 500.00',
-                                });
-                              });
-                              Navigator.pop(context);
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Reservation request logged. Awaiting Secretary confirmation.',
-                                    style: GoogleFonts.lexend(fontSize: 13),
-                                  ),
-                                  backgroundColor: primaryBlue,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
+                                },
                               );
+
+                              if (success) {
+                                _showSnack(
+                                  "Reservation requested successfully!",
+                                );
+                                _loadLiveReservations();
+                              } else {
+                                setState(() => _isLoading = false);
+                                _showSnack("Failed to submit booking request.");
+                              }
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryBlue,
@@ -582,25 +592,20 @@ class _BookAmenitiesPageState extends State<BookAmenitiesPage> {
     );
   }
 
-  // Global modal textfield visual framework generator
   InputDecoration _modalInputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: Icon(icon, color: const Color(0xFF1A237E), size: 20),
+      prefixIcon: Icon(icon, color: primaryBlue, size: 20),
       labelStyle: GoogleFonts.inter(fontSize: 13.5, color: Colors.black45),
       filled: true,
       fillColor: const Color(0xFFFBFBFC),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF1A237E), width: 1.5),
+        borderSide: const BorderSide(color: primaryBlue, width: 1.5),
       ),
     );
   }

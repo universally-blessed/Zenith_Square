@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
 class UpdateNomineePage extends StatefulWidget {
   const UpdateNomineePage({super.key});
@@ -10,14 +11,91 @@ class UpdateNomineePage extends StatefulWidget {
 
 class _UpdateNomineePageState extends State<UpdateNomineePage> {
   static const Color primaryBlue = Color(0xFF1A237E);
-  final _formKey = GlobalKey<FormState>();
+  static const Color darkText = Color(0xFF1A1A24);
 
-  final _nameController = TextEditingController(text: 'Priya Shah');
-  final _relationController = TextEditingController(text: 'Spouse');
-  final _phoneController = TextEditingController(text: '9876543211');
-  final _addressController = TextEditingController(
-    text: 'Satellite Road, Ahmedabad',
-  );
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _relationController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+
+  bool _isInitLoading = true;
+  bool _isProcessing = false;
+
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingNomineeRow();
+  }
+
+  Future<void> _loadExistingNomineeRow() async {
+    try {
+      final data = await ApiService.fetchNomineeDetails(_sessionToken);
+      if (data['no_nominee'] == false) {
+        _nameController.text = data['nominee_name'] ?? '';
+        _relationController.text = data['relation'] ?? '';
+        _phoneController.text = data['phone'] ?? '';
+        _addressController.text = data['address'] ?? '';
+      }
+    } catch (_) {
+      _showNotification(
+        "Failed to resolve existing historical nominee rows.",
+        isError: true,
+      );
+    } finally {
+      setState(() => _isInitLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _relationController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _commitNomineeChanges() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isProcessing = true);
+
+    bool success = await ApiService.saveNomineeDetails(_sessionToken, {
+      'nominee_name': _nameController.text.trim(),
+      'relation': _relationController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'address': _addressController.text.trim(),
+    });
+
+    setState(() => _isProcessing = false);
+
+    if (success) {
+      _showNotification(
+        "Nominee records successfully synchronized.",
+        isError: false,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } else {
+      _showNotification(
+        "Server rejected nominee row transaction updates.",
+        isError: true,
+      );
+    }
+  }
+
+  void _showNotification(String msg, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
+        backgroundColor: isError ? Colors.red.shade800 : primaryBlue,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,109 +114,130 @@ class _UpdateNomineePageState extends State<UpdateNomineePage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24.0),
-          children: [
-            Text(
-              'Nominee Association & Emergency Core',
-              style: GoogleFonts.lexend(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A24),
-              ),
-            ),
-            const SizedBox(height: 20),
+      body: _isInitLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(24.0),
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  Text(
+                    'Nominee Association & Emergency Core',
+                    style: GoogleFonts.lexend(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: darkText,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
-            TextFormField(
-              controller: _nameController,
-              decoration: _inputDecoration(
-                'Nominee Legal Full Name',
-                Icons.person_outline_rounded,
-              ),
-              validator: (val) =>
-                  (val == null || val.isEmpty) ? 'Name is required' : null,
-            ),
-            const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: darkText,
+                    ),
+                    decoration: _inputDecoration(
+                      'Nominee Legal Full Name',
+                      Icons.person_outline_rounded,
+                    ),
+                    validator: (val) => (val == null || val.trim().isEmpty)
+                        ? 'Name is required'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
 
-            TextFormField(
-              controller: _relationController,
-              decoration: _inputDecoration(
-                'Relationship (e.g., Spouse, Father)',
-                Icons.family_restroom_rounded,
-              ),
-              validator: (val) => (val == null || val.isEmpty)
-                  ? 'Relationship is required'
-                  : null,
-            ),
-            const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _relationController,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: darkText,
+                    ),
+                    decoration: _inputDecoration(
+                      'Relationship (e.g., Spouse, Father)',
+                      Icons.family_restroom_rounded,
+                    ),
+                    validator: (val) => (val == null || val.trim().isEmpty)
+                        ? 'Relationship description required'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
 
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              maxLength: 10,
-              decoration: _inputDecoration(
-                'Emergency Mobile Contact',
-                Icons.phone_android_outlined,
-              ),
-              validator: (val) => (val == null || val.length != 10)
-                  ? 'Enter a valid 10-digit number'
-                  : null,
-            ),
-            const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: darkText,
+                    ),
+                    decoration: _inputDecoration(
+                      'Emergency Mobile Contact',
+                      Icons.phone_android_outlined,
+                    ),
+                    validator: (val) => (val == null || val.trim().length != 10)
+                        ? 'Enter a valid 10-digit number'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
 
-            TextFormField(
-              controller: _addressController,
-              maxLines: 3,
-              decoration: _inputDecoration(
-                'Permanent Residential Address',
-                Icons.home_work_outlined,
-              ),
-              validator: (val) =>
-                  (val == null || val.isEmpty) ? 'Address is required' : null,
-            ),
-            const SizedBox(height: 35),
+                  TextFormField(
+                    controller: _addressController,
+                    maxLines: 3,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: darkText,
+                    ),
+                    decoration: _inputDecoration(
+                      'Permanent Residential Address',
+                      Icons.home_work_outlined,
+                    ),
+                    validator: (val) => (val == null || val.trim().isEmpty)
+                        ? 'Address parameter required'
+                        : null,
+                  ),
+                  const SizedBox(height: 40),
 
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Nominee details successfully synchronized with relational database metrics.',
-                          style: GoogleFonts.lexend(fontSize: 13),
-                        ),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _isProcessing ? null : _commitNomineeChanges,
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: primaryBlue,
-                        behavior: SnackBarBehavior.floating,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
                       ),
-                    );
-                    Navigator.pop(context);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                      child: _isProcessing
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Text(
+                              'Save Nominee Logs',
+                              style: GoogleFonts.lexend(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                    ),
                   ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Save Nominee Logs',
-                  style: GoogleFonts.lexend(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -152,7 +251,7 @@ class _UpdateNomineePageState extends State<UpdateNomineePage> {
       fillColor: Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),

@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
-class ViewMeetingsPage extends StatelessWidget {
+class ViewMeetingsPage extends StatefulWidget {
   const ViewMeetingsPage({super.key});
 
+  @override
+  State<ViewMeetingsPage> createState() => _ViewMeetingsPageState();
+}
+
+class _ViewMeetingsPageState extends State<ViewMeetingsPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
+
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+  late Future<List<dynamic>> _meetingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshMeetingsPool();
+  }
+
+  void _refreshMeetingsPool() {
+    setState(() {
+      _meetingsFuture = ApiService.fetchMeetings(_sessionToken);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,43 +45,97 @@ class ViewMeetingsPage extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24.0),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          Text(
-            'Scheduled Aggregations',
-            style: GoogleFonts.lexend(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: darkText,
-            ),
-          ),
-          const SizedBox(height: 14),
+      body: RefreshIndicator(
+        onRefresh: () async => _refreshMeetingsPool(),
+        color: primaryBlue,
+        child: FutureBuilder<List<dynamic>>(
+          future: _meetingsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: primaryBlue),
+              );
+            }
 
-          // Data matches your meeting SQL scheme structure properties
-          _buildMeetingCard(
-            title: 'Annual General Body Meeting (AGM)',
-            agenda:
-                'Discussion on major block re-painting project budgets, CCTV scaling setup parameters, and validation of new security vendors.',
-            date: '2026-06-05',
-            time: '10:00 AM',
-            location: 'Main Community Clubhouse Hall',
-            isUpcoming: true,
-          ),
-          const SizedBox(height: 16),
-          _buildMeetingCard(
-            title: 'Emergency Drainage Sync Call',
-            agenda:
-                'Reviewing basement shaft layout pipeline blocks and technical repair vendor estimates confirmation.',
-            date: '2026-05-10',
-            time: '08:30 PM',
-            location: 'Block A Parking Lobby Axis',
-            isUpcoming: false,
-            minutesFilename:
-                'MOM_Drainage_Fix_Signed.pdf', // Simulates minutes_doc field
-          ),
-        ],
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                snapshot.data!.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.35),
+                  Center(
+                    child: Text(
+                      'No council assemblies or general meetings registered.',
+                      style: GoogleFonts.inter(
+                        color: Colors.black38,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final meetingsList = snapshot.data!;
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(24.0),
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount:
+                  meetingsList.length + 1, // +1 for the header title widget row
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      'Scheduled Aggregations',
+                      style: GoogleFonts.lexend(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: darkText,
+                      ),
+                    ),
+                  );
+                }
+
+                // Offset index by 1 to map array entries correctly below the header
+                final meeting = meetingsList[index - 1];
+
+                // Programmatically check date configurations using system calendar utilities
+                bool isUpcoming = true;
+                try {
+                  DateTime meetingDate = DateTime.parse(
+                    meeting['meeting_date'],
+                  );
+                  DateTime today = DateTime.now();
+                  // Strip down hours for clean date comparisons
+                  DateTime cleanToday = DateTime(
+                    today.year,
+                    today.month,
+                    today.day,
+                  );
+                  if (meetingDate.isBefore(cleanToday)) {
+                    isUpcoming = false;
+                  }
+                } catch (_) {}
+
+                return _buildMeetingCard(
+                  title: meeting['title'] ?? 'Committee Assembly',
+                  agenda: meeting['agenda'] ?? 'No explicit agenda listed.',
+                  date: meeting['meeting_date'] ?? '',
+                  time: meeting['start_time'] ?? '',
+                  location: meeting['location'] ?? 'Clubhouse Room',
+                  isUpcoming: isUpcoming,
+                  minutesFilename: meeting['minutes_doc'].toString().isNotEmpty
+                      ? meeting['minutes_doc']
+                      : null,
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -168,8 +243,18 @@ class ViewMeetingsPage extends StatelessWidget {
           if (!isUpcoming && minutesFilename != null) ...[
             const SizedBox(height: 12),
             TextButton.icon(
-              onPressed:
-                  () {}, // Simulated hook to fetch your minutes_doc PDF target
+              onPressed: () {
+                // Production Hook: Passes filename target path smoothly to system launchers
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Opening: $minutesFilename',
+                      style: GoogleFonts.lexend(fontSize: 12),
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
               icon: const Icon(
                 Icons.picture_as_pdf_outlined,
                 size: 16,

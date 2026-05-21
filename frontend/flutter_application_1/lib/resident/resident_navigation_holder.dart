@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// Import your existing pages here
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import './resident_page.dart';
-// import './polls.dart'; // Using this as part of Active Feed
-// import './complaints.dart'; // Using this inside Logged Actions
+import '../api_services.dart'; // Ensure this points to your api_service.dart layer
 
 class ResidentNavigationHolder extends StatefulWidget {
   const ResidentNavigationHolder({super.key});
@@ -15,30 +15,78 @@ class ResidentNavigationHolder extends StatefulWidget {
 
 class _ResidentNavigationHolderState extends State<ResidentNavigationHolder> {
   int _currentIndex = 0;
+  bool _isLoading = true;
+  Map<String, dynamic> _profileMeta = {
+    'user_name': 'Loading...',
+    'society_name': 'Zenith Square',
+    'unit_info': 'Fetching Unit...',
+  };
 
-  // Global theme color mirroring your onboarding system branding archetype
+  // Active user session simulation token matching Django authentication backend
+  final String _authToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
   static const Color primaryBlue = Color(0xFF1A237E);
 
-  // Structural mapping of your core functional domains
-  late final List<Widget> _tabs = [
-    ResidentHomePage(
-      onTabSwitchRequested: (index) {
+  @override
+  void initState() {
+    super.initState();
+    _fetchGlobalDashboardContext();
+  }
+
+  Future<void> _fetchGlobalDashboardContext() async {
+    try {
+      final result = await ApiService.fetchDashboardMeta(_authToken);
+      if (result['success'] == true) {
         setState(() {
-          _currentIndex =
-              index; // Smoothly changes the bottom bar state programmatically
+          _profileMeta = result['data'];
+          _isLoading = false;
         });
-      },
-    ),
-    const ResidentActiveFeedPage(),
-    const ResidentLoggedActionsPage(),
-    const ResidentProfileHubPage(),
-  ];
+      } else {
+        setState(() => _isLoading = false);
+        _showSnack("Failed to parse structural profile context tokens.");
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnack("Error communicating with data servers.");
+    }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(color: primaryBlue, strokeWidth: 3),
+        ),
+      );
+    }
+
+    // Dynamic relational tab construction injecting database content streams down to viewports
+    final List<Widget> tabs = [
+      ResidentHomePage(
+        userData:
+            _profileMeta, // Securely passing backend records directly into your home screen
+        onTabSwitchRequested: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+      ),
+      const ResidentActiveFeedPage(),
+      const ResidentLoggedActionsPage(),
+      ResidentProfileHubPage(
+        profileData: _profileMeta,
+      ), // Injecting active profile map down to template rows
+    ];
+
     return Scaffold(
-      // IndexedStack optimizes mobile performance by preserving tab state layouts when switching
-      body: IndexedStack(index: _currentIndex, children: _tabs),
+      body: IndexedStack(index: _currentIndex, children: tabs),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
@@ -51,11 +99,7 @@ class _ResidentNavigationHolderState extends State<ResidentNavigationHolder> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
+          onTap: (index) => setState(() => _currentIndex = index),
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
           selectedItemColor: primaryBlue,
@@ -99,11 +143,34 @@ class _ResidentNavigationHolderState extends State<ResidentNavigationHolder> {
 }
 
 // ================= Tab 2 Content (Cleanly Separated Class) =================
-class ResidentActiveFeedPage extends StatelessWidget {
+class ResidentActiveFeedPage extends StatefulWidget {
   const ResidentActiveFeedPage({super.key});
 
+  @override
+  State<ResidentActiveFeedPage> createState() => _ResidentActiveFeedPageState();
+}
+
+class _ResidentActiveFeedPageState extends State<ResidentActiveFeedPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
+
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+  late Future<List<dynamic>> _noticesFuture;
+  late Future<List<dynamic>> _meetingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshBroadcastPools();
+  }
+
+  void _refreshBroadcastPools() {
+    setState(() {
+      _noticesFuture = ApiService.fetchNotices(_sessionToken);
+      _meetingsFuture = ApiService.fetchMeetings(_sessionToken);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,99 +204,172 @@ class ResidentActiveFeedPage extends StatelessWidget {
             unselectedLabelColor: Colors.white70,
             tabs: const [
               Tab(text: 'Notice Board'),
-              Tab(text: 'Meetings & MOM'), // Links to meeting & minutes records
+              Tab(text: 'Meetings & MOM'),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [_buildNoticesList(context), _buildMeetingsList()],
+        body: RefreshIndicator(
+          onRefresh: () async {
+            _refreshBroadcastPools();
+          },
+          color: primaryBlue,
+          child: TabBarView(
+            children: [_buildNoticesTab(), _buildMeetingsTab()],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildNoticesList(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        _buildFeedItem(
-          category: 'MAINTENANCE ALERT',
-          tagColor: Colors.orange.shade800,
-          date: 'May 20, 2026',
-          title: 'Elevator Shaft Inspection Block B',
-          body:
-              'Technicians will perform mandatory structural hoisting checks on Friday between 01:00 PM and 04:00 PM.',
-          icon: Icons.build_circle_outlined,
-        ),
-      ],
+  Widget _buildNoticesTab() {
+    return FutureBuilder<List<dynamic>>(
+      future: _noticesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: primaryBlue),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Text(
+              'No announcements posted on the notice board.',
+              style: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
+            ),
+          );
+        }
+
+        final noticesList = snapshot.data!;
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: noticesList.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 14),
+          itemBuilder: (context, index) {
+            final notice = noticesList[index];
+            return _buildFeedItem(
+              category: 'BROADCAST ALERT',
+              tagColor: Colors.orange.shade800,
+              date: notice['created_at'] ?? '',
+              title: notice['title'] ?? 'Untitled Notice',
+              body: notice['description'] ?? '',
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildMeetingsList() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.06)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildMeetingsTab() {
+    return FutureBuilder<List<dynamic>>(
+      future: _meetingsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: primaryBlue),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Text(
+              'No council or general meetings scheduled.',
+              style: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
+            ),
+          );
+        }
+
+        final meetingsList = snapshot.data!;
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: meetingsList.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 14),
+          itemBuilder: (context, index) {
+            final meeting = meetingsList[index];
+            bool hasMOM = (meeting['minutes_doc'] ?? '').toString().isNotEmpty;
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.06)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'UPCOMING',
-                      style: GoogleFonts.lexend(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade800,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: hasMOM
+                              ? Colors.teal.shade50
+                              : Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          hasMOM ? 'MOM AVAILABLE' : 'UPCOMING',
+                          style: GoogleFonts.lexend(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: hasMOM
+                                ? Colors.teal.shade800
+                                : Colors.blue.shade800,
+                          ),
+                        ),
                       ),
+                      Text(
+                        meeting['meeting_date'] ?? '',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.black38,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    meeting['title'] ?? 'Committee Assembly',
+                    style: GoogleFonts.lexend(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: darkText,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    '2026-06-05',
+                    'Location: ${meeting['location']} • Time: ${meeting['start_time']}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: Colors.black38,
-                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
                     ),
                   ),
+                  if (meeting['agenda'].toString().isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Divider(height: 1, thickness: 0.5),
+                    ),
+                    Text(
+                      "Agenda: ${meeting['agenda']}",
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.black45,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Annual General Body Meeting (AGM)',
-                style: GoogleFonts.lexend(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: darkText,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Location: Main Clubhouse Hall • Time: 10:00 AM',
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.black54),
-              ),
-            ],
-          ),
-        ),
-      ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -239,7 +379,6 @@ class ResidentActiveFeedPage extends StatelessWidget {
     required String date,
     required String title,
     required String body,
-    required IconData icon,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -303,17 +442,42 @@ class ResidentActiveFeedPage extends StatelessWidget {
   }
 }
 
-// ================= Tab 3 Content (Cleanly Separated Class) =================
-class ResidentLoggedActionsPage extends StatelessWidget {
+// ================= Tab 3 Content (Refactored Stateful Implementation) =================
+class ResidentLoggedActionsPage extends StatefulWidget {
   const ResidentLoggedActionsPage({super.key});
 
+  @override
+  State<ResidentLoggedActionsPage> createState() =>
+      _ResidentActionsTrackerState(); // <-- Error: Looking for _ResidentLoggedActionsPageState
+}
+
+class _ResidentActionsTrackerState extends State<ResidentLoggedActionsPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
+
+  // Active user session simulation token matching Django authentication back-end
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+  late Future<List<dynamic>> _complaintsFuture;
+  late Future<List<dynamic>> _bookingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshDataPools();
+  }
+
+  void _refreshDataPools() {
+    setState(() {
+      _complaintsFuture = ApiService.fetchComplaints(_sessionToken);
+      _bookingsFuture = ApiService.fetchAmenityBookings(_sessionToken);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2, // Dual monitoring scopes
+      length: 2,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
@@ -346,59 +510,118 @@ class ResidentLoggedActionsPage extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [_buildComplaintsTab(), _buildBookingsTab()],
+        body: RefreshIndicator(
+          onRefresh: () async {
+            _refreshDataPools();
+          },
+          color: primaryBlue,
+          child: TabBarView(
+            children: [_buildComplaintsTab(), _buildBookingsTab()],
+          ),
         ),
       ),
     );
   }
 
-  // Tab A: Displays complaints logged via complaint table
+  // Tab A: Displays complaints logged dynamically via Django database serialization templates
   Widget _buildComplaintsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        _buildTrackerCard(
-          id: 'CMP-402',
-          title: 'Plumbing Leakage Block A Shaft',
-          subtitle: 'Reported on: 2026-05-18',
-          statusText: 'RESOLVED',
-          statusColor: Colors.green,
-          icon: Icons.plumbing_outlined,
-          trailingDetails: 'Resolved by Maintenance Cell on 2026-05-19.',
-        ),
-        const SizedBox(height: 14),
-        _buildTrackerCard(
-          id: 'CMP-419',
-          title: 'Basement Lift Fan Inoperative',
-          subtitle: 'Reported on: 2026-05-20',
-          statusText: 'PENDING',
-          statusColor: Colors.amber.shade900,
-          icon: Icons.elevator_outlined,
-          trailingDetails: 'Assigned to technical vendor operations team.',
-        ),
-      ],
+    return FutureBuilder<List<dynamic>>(
+      future: _complaintsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: primaryBlue),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Text(
+              'No active complaints logged.',
+              style: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
+            ),
+          );
+        }
+
+        final complaintsList = snapshot.data!;
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: complaintsList.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 14),
+          itemBuilder: (context, index) {
+            final item = complaintsList[index];
+            String status = (item['status'] ?? 'PENDING')
+                .toString()
+                .toUpperCase();
+            Color statusColor = status == 'RESOLVED'
+                ? Colors.green
+                : Colors.amber.shade900;
+
+            return _buildTrackerCard(
+              id: item['complaint_id'] ?? 'CM-UNK',
+              title: item['title'] ?? 'Untitled Issue',
+              subtitle:
+                  "Logged on: ${(item['created_at'] ?? '').toString().split('T')[0]}",
+              statusText: status,
+              statusColor: statusColor,
+              icon: Icons.chat_bubble_outline_rounded,
+              trailingDetails:
+                  item['description'] ?? 'No description supplied.',
+            );
+          },
+        );
+      },
     );
   }
 
-  // Tab B: Displays bookings logged via amenity_booking table
+  // Tab B: Displays bookings logged dynamically via amenity_booking schema rows
   Widget _buildBookingsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        _buildTrackerCard(
-          id: 'BKG-901',
-          title: 'Clubhouse Banquet Hall',
-          subtitle: 'Event Date: 2026-05-28',
-          statusText: 'APPROVED',
-          statusColor: Colors.blue.shade700,
-          icon: Icons.gite_outlined,
-          trailingDetails:
-              'Timings: 04:00 PM - 11:00 PM • Verified by Secretary.',
-        ),
-      ],
+    return FutureBuilder<List<dynamic>>(
+      future: _bookingsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: primaryBlue),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Text(
+              'No asset reservations found.',
+              style: GoogleFonts.inter(color: Colors.black38, fontSize: 13.5),
+            ),
+          );
+        }
+
+        final bookingsList = snapshot.data!;
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: bookingsList.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 14),
+          itemBuilder: (context, index) {
+            final item = bookingsList[index];
+            String status = (item['status'] ?? 'PENDING')
+                .toString()
+                .toUpperCase();
+
+            Color statusColor = Colors.amber.shade900;
+            if (status == 'APPROVED') statusColor = Colors.blue.shade700;
+            if (status == 'EXPIRED') statusColor = Colors.red.shade800;
+
+            return _buildTrackerCard(
+              id: item['booking_id'] ?? 'BK-UNK',
+              title: "Amenity: ${item['amenity_id'] ?? 'Facility'}",
+              subtitle: "Event Date: ${item['booking_date']}",
+              statusText: status,
+              statusColor: statusColor,
+              icon: Icons.gite_outlined,
+              trailingDetails:
+                  "Allocated Slots: ${item['slots'] ?? 'Unassigned Window'}",
+            );
+          },
+        );
+      },
     );
   }
 
@@ -417,14 +640,7 @@ class ResidentLoggedActionsPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: primaryBlue.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,7 +736,16 @@ class ResidentLoggedActionsPage extends StatelessWidget {
 
 // ================= Tab 4 Content (Cleanly Separated Class) =================
 class ResidentProfileHubPage extends StatelessWidget {
-  const ResidentProfileHubPage({super.key});
+  final Map<String, dynamic>
+  profileData; // Receives dynamic data packet from backend context
+  final VoidCallback?
+  onProfileUpdated; // Optional handle to trigger data re-fetch on parent holder
+
+  const ResidentProfileHubPage({
+    required this.profileData,
+    this.onProfileUpdated,
+    super.key,
+  });
 
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
@@ -529,55 +754,57 @@ class ResidentProfileHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        title: Text(
-          'Profile & Household',
-          style: GoogleFonts.lexend(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 18,
-          ),
-        ),
-        backgroundColor: primaryBlue,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.history_toggle_off_rounded,
-              color: Colors.white,
-            ),
-            onPressed: () => Navigator.pushNamed(
-              context,
-              '/payment_history',
-            ), // system connection to payment ledger logs
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section 1: User Account Information Card
-            // Inside Tab 4 Account Information Card children array:
+            // 1. ACCOUNT INFORMATION BLOCK
             _buildInfoCard(
               title: 'Account Information',
               icon: Icons.person_outline_rounded,
-              onActionPressed: () =>
-                  Navigator.pushNamed(context, '/update_profile'),
+              onActionPressed: () async {
+                // Passes live session data down to input field controllers natively
+                final dynamic checkSuccess = await Navigator.pushNamed(
+                  context,
+                  '/update_profile',
+                  arguments: {
+                    'phone': profileData['phone'],
+                    'email': profileData['email'],
+                  },
+                );
+                // Trigger refresh if database row mutation completes successfully
+                if (checkSuccess == true && onProfileUpdated != null) {
+                  onProfileUpdated!();
+                }
+              },
               actionLabel: 'Modify',
               children: [
-                _buildDataRow('Full Name', 'Amit Harish Patel'),
-                _buildDataRow('Phone Number', '+91 9287451024'),
-                _buildDataRow('Email Address', 'amitpatel@gmail.com'),
-                const Divider(height: 16), // Divider for spacing
-                // NEW Reset Password Navigation Row Trigger
+                _buildDataRow(
+                  'Full Name',
+                  profileData['user_name'] ?? 'Resident Member',
+                ),
+                _buildDataRow('Phone Number', profileData['phone'] ?? 'N/A'),
+                _buildDataRow(
+                  'Email Address',
+                  (profileData['email'] == null ||
+                          profileData['email'].toString().isEmpty)
+                      ? 'Not Provided'
+                      : profileData['email'],
+                ),
+                const Divider(height: 16),
                 InkWell(
-                  onTap: () => Navigator.pushNamed(context, '/reset_password'),
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/change_password',
+                  ), // FIX: Adjusted route path match rule keys
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6.0,
+                      horizontal: 4.0,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -602,14 +829,12 @@ class ResidentProfileHubPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Section 2: Nominee Management
+            // 2. NOMINEE BLOCK (Static parameters awaiting phase updates)
             _buildInfoCard(
               title: 'Nominee & Emergency Contact',
               icon: Icons.contact_emergency_outlined,
-              onActionPressed: () => Navigator.pushNamed(
-                context,
-                '/update_nominee',
-              ), // NEW Nominee Form connection
+              onActionPressed: () =>
+                  Navigator.pushNamed(context, '/update_nominee'),
               actionLabel: 'Manage',
               children: [
                 _buildDataRow('Nominee Name', 'Priya Shah'),
@@ -620,17 +845,16 @@ class ResidentProfileHubPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Section 3: Relational Tenant & History Tracker
+            // 3. UNIT LOGS GENERAL OVERVIEW
             _buildInfoCard(
               title: 'Unit Tenancy Logs',
               icon: Icons.history_edu_outlined,
               children: [
-                _buildDataRow('Current Status', 'Rented Out'),
                 _buildDataRow(
-                  'Active Tenant',
-                  'Rahul Mahesh Shah',
-                ), // Maps to active row in tenant table
-                _buildDataRow('Lease Move-In', '2025-01-10'),
+                  'Assigned Space',
+                  profileData['unit_info'] ?? 'Loading...',
+                ),
+                _buildDataRow('Current Status', 'Self Occupied'),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Divider(height: 1),
@@ -648,10 +872,7 @@ class ResidentProfileHubPage extends StatelessWidget {
                   'Ankit Vyas (Tenant)',
                   'Moved Out: 2024-12-01',
                 ),
-                _buildHistoryRow(
-                  'Self Occupied',
-                  'Period: 2024-01-01 to 2024-09-30',
-                ),
+                _buildHistoryRow('Initial Allocation', 'Period: 2024-01-01'),
               ],
             ),
           ],

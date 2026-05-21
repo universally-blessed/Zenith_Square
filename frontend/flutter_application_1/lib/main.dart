@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/forgot_password.dart';
 import 'package:flutter_application_1/resident/book_amenitites.dart';
 import 'package:flutter_application_1/resident/change_password_page.dart';
 import 'package:flutter_application_1/resident/complaints.dart';
@@ -43,8 +44,8 @@ class ZenithSquareApp extends StatelessWidget {
         '/': (context) => const MobileLandingPage(),
         '/register': (context) => const RegistrationPage(),
         '/login': (context) => const LoginPage(),
+        '/forgot_password': (context) => const ForgotPasswordPage(),
         '/home': (context) => const ResidentNavigationHolder(),
-        '/resident_home': (context) => const ResidentHomePage(),
         '/otp_verify': (context) => const OTPVerificationPage(),
         '/maintenance': (context) => const MaintenancePaymentPage(),
         '/amenities': (context) => const BookAmenitiesPage(),

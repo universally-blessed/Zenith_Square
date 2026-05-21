@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -20,6 +21,60 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
+  bool _isProcessing = false;
+
+  // Active secure user token session context variable matching Django backend constraints
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _processPasswordMutation() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isProcessing = true);
+
+    final response = await ApiService.updatePassword(
+      _sessionToken,
+      _currentPasswordController.text,
+      _newPasswordController.text,
+    );
+
+    setState(() => _isProcessing = false);
+
+    if (response['success'] == true) {
+      if (mounted) {
+        _showNotification(
+          'Security password updated successfully.',
+          isError: false,
+        );
+        Navigator.pop(context);
+      }
+    } else {
+      if (mounted) {
+        _showNotification(
+          response['error'] ?? 'Password update rejected.',
+          isError: true,
+        );
+      }
+    }
+  }
+
+  void _showNotification(String msg, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
+        backgroundColor: isError ? Colors.red.shade800 : Colors.green.shade800,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +118,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             TextFormField(
               controller: _currentPasswordController,
               obscureText: _obscureCurrent,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: darkText,
+              ),
               decoration: _inputDecoration(
                 'Current Password',
                 Icons.lock_open_rounded,
@@ -77,7 +137,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 ),
               ),
               validator: (val) => (val == null || val.isEmpty)
-                  ? 'Enter current valid credential pass string'
+                  ? 'Please enter your current password'
                   : null,
             ),
             const SizedBox(height: 16),
@@ -86,6 +146,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             TextFormField(
               controller: _newPasswordController,
               obscureText: _obscureNew,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: darkText,
+              ),
               decoration: _inputDecoration(
                 'New Password',
                 Icons.lock_outline,
@@ -108,6 +173,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             TextFormField(
               controller: _confirmPasswordController,
               obscureText: _obscureConfirm,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: darkText,
+              ),
               decoration: _inputDecoration(
                 'Confirm New Password',
                 Icons.gpp_good_outlined,
@@ -128,44 +198,39 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 return null;
               },
             ),
-            const SizedBox(height: 35),
+            const SizedBox(height: 40),
 
-            // Submission Action
+            // Submission Action Button Context
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    // Simulates dispatching the hash array update straight to your Django encryption layers
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Security password updated successfully.',
-                          style: GoogleFonts.lexend(fontSize: 13),
-                        ),
-                        backgroundColor: Colors.green.shade800,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    Navigator.pop(context);
-                  }
-                },
+                onPressed: _isProcessing ? null : _processPasswordMutation,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryBlue,
+                  disabledBackgroundColor: Colors.grey.shade200,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                   elevation: 0,
                 ),
-                child: Text(
-                  'Change Password',
-                  style: GoogleFonts.lexend(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
+                child: _isProcessing
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Text(
+                        'Change Password',
+                        style: GoogleFonts.lexend(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -188,7 +253,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       fillColor: Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),

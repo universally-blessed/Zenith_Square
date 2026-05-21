@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
-class PaymentHistoryPage extends StatelessWidget {
+class PaymentHistoryPage extends StatefulWidget {
   const PaymentHistoryPage({super.key});
 
+  @override
+  State<PaymentHistoryPage> createState() => _PaymentHistoryPageState();
+}
+
+class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
+
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+  late Future<List<dynamic>> _historyFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshHistoryPool();
+  }
+
+  void _refreshHistoryPool() {
+    setState(() {
+      _historyFuture = ApiService.fetchPaymentHistory(_sessionToken);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,37 +45,72 @@ class PaymentHistoryPage extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24.0),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          Text(
-            'Historical Records',
-            style: GoogleFonts.lexend(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: darkText,
-            ),
-          ),
-          const SizedBox(height: 14),
+      body: RefreshIndicator(
+        onRefresh: () async => _refreshHistoryPool(),
+        color: primaryBlue,
+        child: FutureBuilder<List<dynamic>>(
+          future: _historyFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: primaryBlue),
+              );
+            }
 
-          _buildReceiptRow(
-            receiptId:
-                'REC-2026-001', // Matches payment_receipt.receipt_number format exactly
-            type: 'Maintenance Charge',
-            amount: '₹2,500.00',
-            date: '2026-03-22',
-            method: 'UPI (GPay)',
-          ),
-          const SizedBox(height: 12),
-          _buildReceiptRow(
-            receiptId: 'REC-2026-004',
-            type: 'Amenity Reservation',
-            amount: '₹500.00',
-            date: '2026-03-25',
-            method: 'Net Banking',
-          ),
-        ],
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                snapshot.data!.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.35),
+                  Center(
+                    child: Text(
+                      'No settled digital invoice records found.',
+                      style: GoogleFonts.inter(
+                        color: Colors.black38,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final historyList = snapshot.data!;
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(24.0),
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: historyList.length + 1,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      'Historical Records',
+                      style: GoogleFonts.lexend(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: darkText,
+                      ),
+                    ),
+                  );
+                }
+
+                final item = historyList[index - 1];
+                return _buildReceiptRow(
+                  receiptId: item['receipt_id'] ?? 'REC-UNK',
+                  type: item['type'] ?? 'Transaction clearance',
+                  amount: item['amount'] ?? '₹0.00',
+                  date: item['date'] ?? 'N/A',
+                  method: item['method'] ?? 'UPI',
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

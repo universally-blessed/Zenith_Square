@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart'; // FIX: Corrected import to match your standard service file path
 
 class ActivePollsPage extends StatefulWidget {
   const ActivePollsPage({super.key});
@@ -9,8 +10,64 @@ class ActivePollsPage extends StatefulWidget {
 }
 
 class _ActivePollsPageState extends State<ActivePollsPage> {
-  String?
-  selectedOption; // Captures choice to record user response token tracking
+  static const Color primaryBlue = Color(0xFF1A237E);
+  static const Color darkText = Color(0xFF1A1A24);
+
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+  List<dynamic> _pollsList = [];
+  bool _isLoading = true;
+  bool _isSubmittingVote = false;
+
+  // Tracks selections locally using a Map: {"poll_id": "selected_option_id"}
+  final Map<String, String> _localSelections = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPollsPool();
+  }
+
+  Future<void> _loadPollsPool() async {
+    try {
+      final data = await ApiService.fetchActivePolls(_sessionToken);
+      setState(() {
+        _pollsList = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnack("Failed to connect to consultation parameters.");
+    }
+  }
+
+  Future<void> _handleVoteSubmission(String pollId, String optionId) async {
+    setState(() => _isSubmittingVote = true);
+
+    bool completed = await ApiService.submitVote(
+      _sessionToken,
+      pollId,
+      optionId,
+    );
+
+    setState(() => _isSubmittingVote = false);
+
+    if (completed) {
+      _showSnack("Ballot cast securely! Thank you for your response.");
+      _loadPollsPool(); // Reload to switch smoothly to results bar visualization mode
+    } else {
+      _showSnack("Failed to register your vote transaction.");
+    }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.lexend(fontSize: 13)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,138 +82,199 @@ class _ActivePollsPageState extends State<ActivePollsPage> {
             fontSize: 18,
           ),
         ),
-        backgroundColor: const Color(0xFF1A237E),
+        backgroundColor: primaryBlue,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Open Consultations',
-              style: GoogleFonts.lexend(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A24),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1A237E).withValues(alpha: 0.03),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+          : RefreshIndicator(
+              onRefresh: _loadPollsPool,
+              color: primaryBlue,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24.0),
+                children: [
+                  Text(
+                    'Open Consultations',
+                    style: GoogleFonts.lexend(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: darkText,
+                    ),
                   ),
+                  const SizedBox(height: 16),
+
+                  _pollsList.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 80.0),
+                            child: Text(
+                              'No active discussion polls run at this time.',
+                              style: GoogleFonts.inter(color: Colors.black38),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _pollsList.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            final poll = _pollsList[index];
+                            return _buildPollCard(poll);
+                          },
+                        ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'POLL ID: PL001',
-                        style: GoogleFonts.lexend(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1A237E),
-                        ),
-                      ),
-                      Text(
-                        'Ends: 2026-04-15',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: Colors.black38,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ), // Mapped example from DB dictionary
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Parking Rule Change Proposal',
-                    style: GoogleFonts.lexend(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A24),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Vote on the implementation of tighter visitor parking structural window allocations inside common area pathways.',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      height: 1.4,
-                    ),
-                  ),
-                  const Divider(height: 30, thickness: 1),
+            ),
+    );
+  }
 
-                  _buildPollOption('Agree with rule change'),
-                  const SizedBox(height: 10),
-                  _buildPollOption('Keep current regulations split'),
+  Widget _buildPollCard(dynamic poll) {
+    final String pollId = poll['poll_id'] ?? '';
+    final bool hasVoted = poll['has_voted'] ?? false;
+    final List<dynamic> options = poll['options'] ?? [];
 
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: selectedOption == null
-                          ? null
-                          : () {}, // Submits record transaction sequence directly into database
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A237E),
-                        disabledBackgroundColor: Colors.grey.shade200,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'POLL ID: $pollId',
+                style: GoogleFonts.lexend(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: primaryBlue,
+                ),
+              ),
+              Text(
+                'Ends: ${poll['end_date']}',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: Colors.black38,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            poll['title'] ?? 'Proposal Notice',
+            style: GoogleFonts.lexend(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: darkText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            poll['description'] ?? '',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: Colors.black54,
+              height: 1.4,
+            ),
+          ),
+          const Divider(height: 30, thickness: 1),
+
+          // Core conditional execution block splitting choices vs bars
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: options.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, idx) {
+              final opt = options[idx];
+              final String optionId = opt['option_id']?.toString() ?? '';
+
+              if (hasVoted) {
+                return _buildResultsBar(
+                  opt['option_text'] ?? '',
+                  opt['percentage'],
+                );
+              } else {
+                return _buildSelectionTile(
+                  pollId,
+                  optionId,
+                  opt['option_text'] ?? '',
+                );
+              }
+            },
+          ),
+
+          if (!hasVoted) ...[
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed:
+                    (_localSelections[pollId] == null || _isSubmittingVote)
+                    ? null
+                    : () => _handleVoteSubmission(
+                        pollId,
+                        _localSelections[pollId]!,
                       ),
-                      child: Text(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryBlue,
+                  disabledBackgroundColor: Colors.grey.shade200,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isSubmittingVote
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
                         'Submit My Vote',
                         style: GoogleFonts.lexend(
-                          color: selectedOption == null
+                          color: _localSelections[pollId] == null
                               ? Colors.black38
                               : Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildPollOption(String text) {
-    bool isSelected = selectedOption == text;
+  Widget _buildSelectionTile(String pollId, String optionId, String text) {
+    bool isSelected = _localSelections[pollId] == optionId;
     return InkWell(
-      onTap: () => setState(() => selectedOption = text),
+      onTap: () => setState(() => _localSelections[pollId] = optionId),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF1A237E).withValues(alpha: 0.05)
+              ? primaryBlue.withValues(alpha: 0.05)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF1A237E)
+                ? primaryBlue
                 : Colors.grey.withValues(alpha: 0.25),
             width: isSelected ? 1.5 : 1,
           ),
@@ -165,7 +283,7 @@ class _ActivePollsPageState extends State<ActivePollsPage> {
           children: [
             Icon(
               isSelected ? Icons.check_circle : Icons.radio_button_off,
-              color: isSelected ? const Color(0xFF1A237E) : Colors.black38,
+              color: isSelected ? primaryBlue : Colors.black38,
               size: 20,
             ),
             const SizedBox(width: 12),
@@ -175,13 +293,58 @@ class _ActivePollsPageState extends State<ActivePollsPage> {
                 style: GoogleFonts.inter(
                   fontSize: 13.5,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: const Color(0xFF1A1A24),
+                  color: darkText,
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildResultsBar(String label, dynamic percentage) {
+    double barValue = (percentage is int)
+        ? percentage.toDouble()
+        : (percentage ?? 0.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: darkText,
+                ),
+              ),
+            ),
+            Text(
+              '$percentage%',
+              style: GoogleFonts.lexend(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: primaryBlue,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: barValue / 100,
+            minHeight: 8,
+            backgroundColor: Colors.grey.shade100,
+            valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+          ),
+        ),
+      ],
     );
   }
 }

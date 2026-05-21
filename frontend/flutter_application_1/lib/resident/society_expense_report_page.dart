@@ -1,11 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
-class SocietyExpenseReportPage extends StatelessWidget {
+class SocietyExpenseReportPage extends StatefulWidget {
   const SocietyExpenseReportPage({super.key});
 
+  @override
+  State<SocietyExpenseReportPage> createState() =>
+      _SocietyExpenseReportPageState();
+}
+
+class _SocietyExpenseReportPageState extends State<SocietyExpenseReportPage> {
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color darkText = Color(0xFF1A1A24);
+
+  final String _sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+  List<dynamic> _expenseLedger = [];
+  bool _isLoading = true;
+  double _totalOutflow = 0.0;
+
+  // Visual categorization allocations map tracking weights programmatically
+  final Map<String, double> _categoryTotals = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExpensesMetrics();
+  }
+
+  Future<void> _loadExpensesMetrics() async {
+    try {
+      final List<dynamic> data = await ApiService.fetchSocietyExpenses(
+        _sessionToken,
+      );
+
+      double calculatedSum = 0.0;
+      final Map<String, double> tempCategorySums = {};
+
+      for (var item in data) {
+        // Safe casting parse handling alternative numeric schema string structures
+        double amount = double.tryParse(item['amount'].toString()) ?? 0.0;
+        calculatedSum += amount;
+
+        String rawType = item['expense_type'] ?? 'Other';
+        tempCategorySums[rawType] = (tempCategorySums[rawType] ?? 0.0) + amount;
+      }
+
+      setState(() {
+        _expenseLedger = data;
+        _totalOutflow = calculatedSum;
+        _categoryTotals.clear();
+        _categoryTotals.addAll(tempCategorySums);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to compile financial ledger vectors."),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,144 +81,145 @@ class SocietyExpenseReportPage extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Master Financial Summary Card (Data matches Presentation Page 78 metrics)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryBlue.withValues(alpha: 0.03),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.06)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Total Outflow (March 2026)',
-                    style: GoogleFonts.inter(
-                      color: Colors.black45,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₹ 50,000.00', // Matches PPT Page 78 Total Expenses perfectly
-                    style: GoogleFonts.lexend(
-                      color: primaryBlue,
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16.0),
-                    child: Divider(height: 1, thickness: 0.8),
-                  ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+          : RefreshIndicator(
+              onRefresh: _loadExpensesMetrics,
+              color: primaryBlue,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Dynamic Financial Summary Card reading metrics straight from PostgreSQL
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.grey.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total Outflow Balance Track',
+                            style: GoogleFonts.inter(
+                              color: Colors.black45,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₹ ${_totalOutflow.toStringAsFixed(2)}',
+                            style: GoogleFonts.lexend(
+                              color: primaryBlue,
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.0),
+                            child: Divider(height: 1, thickness: 0.8),
+                          ),
 
-                  // Visual Budget Distribution Bars (UI/UX Best Practice for Scannability)
-                  Text(
-                    'Fund Allocation Breakdown',
-                    style: GoogleFonts.lexend(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: darkText,
+                          Text(
+                            'Fund Allocation Breakdown',
+                            style: GoogleFonts.lexend(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: darkText,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          _categoryTotals.isEmpty
+                              ? Text(
+                                  'No breakdown variables registered.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.black38,
+                                  ),
+                                )
+                              : ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: _categoryTotals.length,
+                                  itemBuilder: (context, index) {
+                                    String categoryKey = _categoryTotals.keys
+                                        .elementAt(index);
+                                    double count =
+                                        _categoryTotals[categoryKey] ?? 0.0;
+                                    return _buildBudgetProgressRow(
+                                      categoryKey,
+                                      count,
+                                      _totalOutflow,
+                                      _getCategoryColor(categoryKey),
+                                    );
+                                  },
+                                ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  _buildBudgetProgressRow(
-                    'Staff Salaries',
-                    25000,
-                    50000,
-                    Colors.indigo,
-                  ), // 50% allocation
-                  _buildBudgetProgressRow(
-                    'Electricity',
-                    11000,
-                    50000,
-                    Colors.amber.shade700,
-                  ), // 22% allocation
-                  _buildBudgetProgressRow(
-                    'Routine Maintenance',
-                    5400,
-                    50000,
-                    Colors.green,
-                  ), // 10.8% allocation
-                  _buildBudgetProgressRow(
-                    'Water Utility Bills',
-                    4800,
-                    50000,
-                    Colors.blue,
-                  ), // 9.6% allocation
-                  _buildBudgetProgressRow(
-                    'General Repairs',
-                    3800,
-                    50000,
-                    Colors.red.shade600,
-                  ), // 7.6% allocation
-                ],
+                    const SizedBox(height: 28),
+
+                    Text(
+                      'Transactional Ledger',
+                      style: GoogleFonts.lexend(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    _expenseLedger.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 40.0),
+                              child: Text(
+                                'No expense transactions posted.',
+                                style: GoogleFonts.inter(color: Colors.black38),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _expenseLedger.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final expense = _expenseLedger[index];
+                              String expenseType =
+                                  expense['expense_type'] ?? 'General';
+                              double parsedAmount =
+                                  double.tryParse(
+                                    expense['amount'].toString(),
+                                  ) ??
+                                  0.0;
+
+                              return _buildExpenseLedgerItem(
+                                type: expenseType,
+                                description:
+                                    expense['description'] ??
+                                    'No transaction detail provided.',
+                                amount: '₹${parsedAmount.toStringAsFixed(2)}',
+                                date: expense['payment_date'] ?? 'Recent',
+                                icon: _getCategoryIcon(expenseType),
+                                iconColor: _getCategoryColor(expenseType),
+                              );
+                            },
+                          ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 28),
-
-            Text(
-              'Transactional Ledger',
-              style: GoogleFonts.lexend(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: darkText,
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Item Ledger list conforming to your society_expenses database layout properties
-            _buildExpenseLedgerItem(
-              type: 'Staff Salaries',
-              description:
-                  'Security guard cell, sweepers, and supervisor payroll payouts.',
-              amount: '₹25,000.00',
-              date: '2026-03-31',
-              icon: Icons.badge_outlined,
-              iconBgColor: Colors.indigo.shade50,
-              iconColor: Colors.indigo,
-            ),
-            const SizedBox(height: 12),
-            _buildExpenseLedgerItem(
-              type: 'Electricity',
-              description:
-                  'Common area lightning grid & elevator shaft transformer bills.',
-              amount: '₹11,000.00',
-              date: '2026-04-01',
-              icon: Icons.electric_bolt_outlined,
-              iconBgColor: Colors.amber.shade50,
-              iconColor: Colors.amber.shade800,
-            ),
-            const SizedBox(height: 12),
-            _buildExpenseLedgerItem(
-              type: 'Repairs',
-              description:
-                  'Main overhead water pump impeller core replacement.',
-              amount: '₹3,800.00',
-              date: '2026-03-15',
-              icon: Icons.handyman_outlined,
-              iconBgColor: Colors.red.shade50,
-              iconColor: Colors.red.shade700,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -171,7 +229,7 @@ class SocietyExpenseReportPage extends StatelessWidget {
     double total,
     Color barColor,
   ) {
-    double percent = count / total;
+    double percent = total > 0 ? (count / total) : 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Column(
@@ -218,7 +276,6 @@ class SocietyExpenseReportPage extends StatelessWidget {
     required String amount,
     required String date,
     required IconData icon,
-    required Color iconBgColor,
     required Color iconColor,
   }) {
     return Container(
@@ -234,7 +291,7 @@ class SocietyExpenseReportPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: iconBgColor,
+              color: iconColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: iconColor, size: 20),
@@ -289,5 +346,42 @@ class SocietyExpenseReportPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Helper Utility: Mapping clean styling colors on the fly based on SQL content parameters
+  Color _getCategoryColor(String type) {
+    switch (type.toLowerCase().trim()) {
+      case 'staff salaries':
+        return Colors.indigo;
+      case 'electricity':
+        return Colors.amber.shade700;
+      case 'routine maintenance':
+        return Colors.green;
+      case 'water utility bills':
+        return Colors.blue;
+      case 'repairs':
+      case 'general repairs':
+        return Colors.red.shade600;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  IconData _getCategoryIcon(String type) {
+    switch (type.toLowerCase().trim()) {
+      case 'staff salaries':
+        return Icons.badge_outlined;
+      case 'electricity':
+        return Icons.electric_bolt_outlined;
+      case 'routine maintenance':
+        return Icons.assignment_outlined;
+      case 'water utility bills':
+        return Icons.water_drop_outlined;
+      case 'repairs':
+      case 'general repairs':
+        return Icons.handyman_outlined;
+      default:
+        return Icons.insert_chart_outlined_rounded;
+    }
   }
 }

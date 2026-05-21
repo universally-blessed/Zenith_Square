@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../api_services.dart';
 
 class ResidentHomePage extends StatelessWidget {
-  // Callback actions passed down from the parent shell to switch tabs smoothly
+  final Map<String, dynamic>
+  userData; // Receives data packet dynamically from parent holder
   final Function(int)? onTabSwitchRequested;
 
-  const ResidentHomePage({this.onTabSwitchRequested, super.key});
+  const ResidentHomePage({
+    required this.userData,
+    this.onTabSwitchRequested,
+    super.key,
+  });
 
   static const Color primaryBlue = Color(0xFF1A237E);
   static const Color accentBlue = Color(0xFF29B6F6);
@@ -34,7 +40,6 @@ class ResidentHomePage extends StatelessWidget {
               color: Colors.white,
               size: 26,
             ),
-            // UX Solution 1: Navigates directly to Feed Tab (Index 1)
             onPressed: () => onTabSwitchRequested?.call(1),
           ),
           Padding(
@@ -57,9 +62,7 @@ class ResidentHomePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPremiumHeader(),
-            _buildEmergencySOSCard(
-              context,
-            ), // UI/UX Solution 2: With SnackBar context
+            _buildEmergencySOSCard(context),
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -76,15 +79,13 @@ class ResidentHomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // FIXED GRID: childAspectRatio fixes the massive white spaces from your image
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: 2,
                     mainAxisSpacing: 14,
                     crossAxisSpacing: 14,
-                    childAspectRatio:
-                        1.25, // Compact structure preventing layout stretch
+                    childAspectRatio: 1.25,
                     children: [
                       _buildServiceCard(
                         context,
@@ -128,13 +129,19 @@ class ResidentHomePage extends StatelessWidget {
                         Colors.green.shade600,
                         '/lost_found',
                       ),
-                      // Added to fulfill missing relational DB transparency report tracking
                       _buildServiceCard(
                         context,
                         'Expense Report',
                         Icons.insert_chart_outlined_rounded,
                         Colors.blueGrey.shade700,
                         '/expense_report',
+                      ),
+                      _buildServiceCard(
+                        context,
+                        'Give Feedback',
+                        Icons.rate_review_outlined,
+                        Colors.pink.shade700,
+                        '/feedback',
                       ),
                     ],
                   ),
@@ -173,8 +180,10 @@ class ResidentHomePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
+          // Locate this section inside _buildPremiumHeader() in resident_page.dart:
           Text(
-            'Amit Harish Patel',
+            // The '??' acts as an inline null-safety net
+            userData['user_name'] ?? 'Resident Member',
             style: GoogleFonts.lexend(
               color: Colors.white,
               fontSize: 24,
@@ -199,7 +208,8 @@ class ResidentHomePage extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Zenith Square  •  Block A-101',
+                  // Safely bounds fallback text labels if the network loop is loading
+                  "${userData['society_name'] ?? 'Zenith Square'}  •  ${userData['unit_info'] ?? 'Loading Space...'}",
                   style: GoogleFonts.inter(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12,
@@ -215,101 +225,47 @@ class ResidentHomePage extends StatelessWidget {
   }
 
   Widget _buildEmergencySOSCard(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.red.shade100, width: 1.2),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.gpp_maybe_outlined,
-              color: Colors.red.shade700,
-              size: 24,
+    final String sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
+    bool isSending = false; // ✅ Move here
+
+    return StatefulBuilder(
+      builder: (BuildContext context, StateSetter setCardState) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade100, width: 1.2),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Emergency SOS',
-                    style: GoogleFonts.lexend(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red.shade900,
-                      fontSize: 15,
-                    ),
-                  ),
-                  Text(
-                    'Alert main gate security immediately.',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: Colors.red.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+            child: Row(
+              children: [
+                Icon(Icons.gpp_maybe_outlined, color: Colors.red.shade700),
+                const SizedBox(width: 12),
+                Expanded(child: Text("Emergency SOS")),
+                ElevatedButton(
+                  onPressed: isSending
+                      ? null
+                      : () async {
+                          setCardState(() => isSending = true);
+
+                          bool success = await ApiService.triggerEmergencySOS(
+                            sessionToken,
+                          );
+
+                          setCardState(() => isSending = false);
+                        },
+                  child: isSending
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("SOS"),
+                ),
+              ],
             ),
-            ElevatedButton(
-              onPressed: () {
-                // UI/UX Solution 2: Interactive validation acknowledgment snackbar
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'SOS Alert Transmitted! Gate Security Dispatched.',
-                            style: GoogleFonts.lexend(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.red.shade800,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-              ),
-              child: Text(
-                'SOS',
-                style: GoogleFonts.lexend(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -344,21 +300,18 @@ class ResidentHomePage extends StatelessWidget {
               vertical: 14.0,
             ),
             child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center, // Centers elements vertically
-              crossAxisAlignment:
-                  CrossAxisAlignment.center, // Centers elements horizontally
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: elementColor.withValues(alpha: 0.07),
-                    shape: BoxShape
-                        .circle, // Circular shape looks tighter and cleaner
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: elementColor, size: 24),
                 ),
-                const SizedBox(height: 12), // Tightly bounds text to icon
+                const SizedBox(height: 12),
                 Text(
                   title,
                   textAlign: TextAlign.center,
@@ -380,6 +333,9 @@ class ResidentHomePage extends StatelessWidget {
   }
 
   Widget _buildNoticeFeedSection(BuildContext context) {
+    // Pass your active session string token variables natively here
+    final String sessionToken = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -395,8 +351,9 @@ class ResidentHomePage extends StatelessWidget {
               ),
             ),
             TextButton(
-              // UX Solution 4: Routes directly to the global Feed view tab shell
-              onPressed: () => onTabSwitchRequested?.call(1),
+              onPressed: () => onTabSwitchRequested?.call(
+                1,
+              ), // Navigates cleanly to the dedicated Tab 2 ActiveFeed view
               child: Text(
                 'See All',
                 style: GoogleFonts.lexend(
@@ -409,68 +366,130 @@ class ResidentHomePage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: primaryBlue.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'MAINTENANCE',
-                      style: GoogleFonts.lexend(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: primaryBlue,
-                      ),
+
+        FutureBuilder<List<dynamic>>(
+          future: ApiService.fetchNotices(sessionToken),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                width: double.infinity,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: primaryBlue,
+                    strokeWidth: 2,
+                  ),
+                ),
+              );
+            }
+
+            // Fallback view state layout if database return runs empty arrays
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                snapshot.data!.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.grey.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'No active announcements posted.',
+                    style: GoogleFonts.inter(
+                      color: Colors.black38,
+                      fontSize: 13,
                     ),
                   ),
+                ),
+              );
+            }
+
+            // Capture the single absolute newest broadcast record item tuple line entry
+            final newestNotice = snapshot.data!.first;
+
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryBlue.withValues(alpha: 0.01),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'LATEST NOTICE',
+                          style: GoogleFonts.lexend(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: primaryBlue,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        newestNotice['created_at'] ?? '',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Colors.black38,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   Text(
-                    'May 20, 2026',
+                    newestNotice['title'] ?? 'Untitled Broadcast',
+                    style: GoogleFonts.lexend(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: darkText,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    newestNotice['description'] ?? '',
+                    maxLines:
+                        2, // Keeps text cropped to look tidy on a summary dashboard card grid
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: Colors.black38,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                      color: Colors.black54,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Water Supply Suspension Notice',
-                style: GoogleFonts.lexend(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: darkText,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Please note that water utility supply will be paused from 10:00 AM to 01:00 PM for routine maintenance cleanings.',
-                style: GoogleFonts.inter(
-                  fontSize: 12.5,
-                  color: Colors.black54,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
