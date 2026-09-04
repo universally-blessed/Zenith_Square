@@ -604,130 +604,150 @@ class _UsersScreenState extends State<UsersScreen>
               ),
             ],
           ),
-          child: DataTable(
-            headingRowColor: WidgetStatePropertyAll(Colors.grey.shade100),
-            columns: const [
-              DataColumn(label: Text('Request ID')),
-              DataColumn(label: Text('Society')),
-              DataColumn(label: Text('Requested By (Chairman)')),
-              DataColumn(label: Text('Target Member')),
-              DataColumn(label: Text('Requested Role')),
-              DataColumn(label: Text('Status')),
-              DataColumn(label: Text('Actions')),
-            ],
-            rows: _committeeRequests.map<DataRow>((req) {
-              final String status = req['status'] ?? 'Pending_Admin_Approval';
-              final bool isPendingAdmin = status == 'Pending_Admin_Approval';
-              final bool isPendingChairman =
-                  status == 'Pending_Chairman_Approval';
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  columnSpacing:
+                      24, // Compact spacing to fit desktop widths comfortably
+                  horizontalMargin: 16,
+                  headingRowColor: WidgetStatePropertyAll(Colors.grey.shade100),
+                  columns: const [
+                    DataColumn(label: Text('Request ID')),
+                    DataColumn(label: Text('Society')),
+                    DataColumn(label: Text('Requested By (Chairman)')),
+                    DataColumn(label: Text('Target Member')),
+                    DataColumn(label: Text('Requested Role')),
+                    DataColumn(label: Text('Status')),
+                    DataColumn(label: Text('Actions')),
+                  ],
+                  rows: _committeeRequests.map<DataRow>((req) {
+                    final String status =
+                        req['status'] ?? 'Pending_Admin_Approval';
+                    final bool isPendingAdmin =
+                        status == 'Pending_Admin_Approval';
+                    final bool isPendingChairman =
+                        status == 'Pending_Chairman_Approval';
 
-              return DataRow(
-                cells: [
-                  DataCell(Text(req['request_id'] ?? '')),
-                  DataCell(Text(req['society_name'] ?? '-')),
-                  DataCell(
-                    Text(
-                      req['requested_by_name'] ??
-                          (isPendingChairman ? 'Super Admin' : '-'),
-                    ),
-                  ),
-                  DataCell(
-                    Text(req['target_user_name'] ?? req['target_user'] ?? '-'),
-                  ),
-                  DataCell(
-                    Text(req['new_role_name'] ?? req['new_role'] ?? '-'),
-                  ),
-                  DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: status == 'Approved'
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : status == 'Rejected'
-                            ? Colors.red.withValues(alpha: 0.1)
-                            : Colors.orange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        status.replaceAll('_', ' '),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: status == 'Approved'
-                              ? Colors.green
-                              : status == 'Rejected'
-                              ? Colors.red
-                              : Colors.orange.shade800,
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(req['request_id'] ?? '')),
+                        DataCell(Text(req['society_name'] ?? '-')),
+                        DataCell(
+                          Text(
+                            req['requested_by_name'] ??
+                                (isPendingChairman ? 'Super Admin' : '-'),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                  DataCell(
-                    isPendingAdmin
-                        ? Row(
-                            children: [
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                                onPressed: () => _handleRequest(
-                                  req['request_id'],
-                                  'approve',
-                                ),
-                                child: const Text(
-                                  'Approve',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                        DataCell(
+                          Text(
+                            req['target_user_name'] ??
+                                req['target_user'] ??
+                                '-',
+                          ),
+                        ),
+                        DataCell(
+                          Text(req['new_role_name'] ?? req['new_role'] ?? '-'),
+                        ),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: status == 'Approved'
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : status == 'Rejected'
+                                  ? Colors.red.withValues(alpha: 0.1)
+                                  : Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              status.replaceAll('_', ' '),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: status == 'Approved'
+                                    ? Colors.green
+                                    : status == 'Rejected'
+                                    ? Colors.red
+                                    : Colors.orange.shade800,
                               ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                                onPressed: () =>
-                                    _handleRequest(req['request_id'], 'reject'),
-                                child: const Text(
-                                  'Reject',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(
-                            isPendingChairman
-                                ? 'Awaiting Chairman'
-                                : 'Processed',
-                            style: TextStyle(
-                              color: isPendingChairman
-                                  ? Colors.orange.shade800
-                                  : Colors.grey,
-                              fontWeight: isPendingChairman
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              fontSize: 12,
                             ),
                           ),
-                  ),
-                ],
-              );
-            }).toList(),
+                        ),
+                        DataCell(
+                          isPendingAdmin
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      onPressed: () => _handleRequest(
+                                        req['request_id'],
+                                        'approve',
+                                      ),
+                                      child: const Text(
+                                        'Approve',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.redAccent,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      onPressed: () => _handleRequest(
+                                        req['request_id'],
+                                        'reject',
+                                      ),
+                                      child: const Text(
+                                        'Reject',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  isPendingChairman
+                                      ? 'Awaiting Chairman'
+                                      : 'Processed',
+                                  style: TextStyle(
+                                    color: isPendingChairman
+                                        ? Colors.orange.shade800
+                                        : Colors.grey,
+                                    fontWeight: isPendingChairman
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
           ),
         ),
       ],
