@@ -120,3 +120,21 @@ class LostFoundItem(models.Model):
     def __str__(self):
         return f"{self.item_name} ({self.item_status})"
 
+class Tenant(models.Model):
+    tenant_id = models.CharField(primary_key=True, max_length=6)
+    user = models.ForeignKey('core_api.Users', models.CASCADE, db_column='user_id', blank=True, null=True, related_name='tenancies')
+    flat = models.ForeignKey('core_api.Flats', models.CASCADE, db_column='flat_id', blank=True, null=True, related_name='tenants')
+    owner = models.ForeignKey('core_api.Users', models.DO_NOTHING, db_column='owner_id', blank=True, null=True, related_name='owned_tenant_units')
+    custom_maintenance = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    status = models.CharField(max_length=20, default='active')
+    move_in_date = models.DateField()
+    move_out_date = models.DateField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'tenant'
+        verbose_name = 'Tenant'
+        verbose_name_plural = 'Tenants'
+
+    def __str__(self):
+        return f"{self.tenant_id} - Flat {self.flat_id} ({self.status})"

@@ -268,21 +268,6 @@ class SocietyFeatures(models.Model):
         managed = False
         db_table = 'society_features'
 
-
-class Tenant(models.Model):
-    tenant_id = models.CharField(primary_key=True, max_length=6)
-    user = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
-    flat = models.ForeignKey(Flats, models.DO_NOTHING, blank=True, null=True)
-    owner = models.ForeignKey('Users', models.DO_NOTHING, related_name='tenant_owner_set', blank=True, null=True)
-    custom_maintenance = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    status = models.CharField(max_length=20, blank=True, null=True)
-    move_in_date = models.DateField()
-    move_out_date = models.DateField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'tenant'
-
 class CustomUserManager(BaseUserManager):
     def create_user(self, user_phone, user_name, password=None, **extra_fields):
         if not user_phone:

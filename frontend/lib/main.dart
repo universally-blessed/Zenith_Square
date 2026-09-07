@@ -20,6 +20,7 @@ import './features/facilities/vehicles_screen.dart';
 import './features/facilities/chairman_vehicles_screen.dart';
 import './features/community/meetings_screen.dart';
 import './features/community/chairman_meetings_screen.dart';
+import './features/community/tenant_list_screen.dart';
 import './features/community/polls_screen.dart';
 import './features/community/chairman_polls_screen.dart';
 import './features/community/lost_found_screen.dart';
@@ -101,6 +102,7 @@ class MyApp extends StatelessWidget {
         '/chairman-polls': (context) => const ChairmanPollsScreen(),
         '/chairman-lost-found': (context) => const ChairmanLostFoundScreen(),
         '/chairman-security': (context) => const ChairmanSecurityScreen(),
+        '/chairman-tenants': (context) => const TenantListScreen(),
       },
     );
   }

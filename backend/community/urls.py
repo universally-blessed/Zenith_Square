@@ -12,7 +12,10 @@ from .views import (
     LostFoundItemClaimView,
     LostFoundItemListCreateView,
     MeetingDetailDeleteView,
-    SocietyMembersDropdownListView
+    SocietyMembersDropdownListView,
+    TenantListCreateView,
+    SocietyFlatsDropdownListView,
+    TenantMoveOutView
 )
 
 urlpatterns = [
@@ -35,4 +38,8 @@ urlpatterns = [
     # Lost & Found
     path('lost-found/', LostFoundItemListCreateView.as_view(), name='lost-found-list-create'),
     path('lost-found/<str:item_id>/claim/', LostFoundItemClaimView.as_view(), name='lost-found-claim'),
+
+    path('tenants/', TenantListCreateView.as_view(), name='tenant-list-create'),
+    path('tenants/<str:tenant_id>/move-out/', TenantMoveOutView.as_view(), name='tenant-move-out'),
+    path('flats-dropdown/', SocietyFlatsDropdownListView.as_view(), name='society-flats-dropdown'),
 ]

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Societies, Blocks, Users, Nominee, Resident, Flats
+from .models import Societies, Blocks, Users, Nominee, Resident, Occupancy,SocietyFeatures
 
 class SocietySerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='society_id')
@@ -24,8 +24,14 @@ class RegisterResidentSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=10)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
-    flatId = serializers.CharField(max_length=20)
     societyId = serializers.CharField(max_length=5)
+    blockId = serializers.CharField(max_length=5, required=False)
+    flatNumber = serializers.CharField(max_length=20, required=False)
+    flatId = serializers.CharField(max_length=20, required=False)
+    occupancyType = serializers.ChoiceField(
+        choices=['Owner', 'Tenant'], 
+        default='Owner'
+    )
 
 
 # 1. Profile Serializer (Read & Update)
@@ -35,6 +41,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.role_name', read_only=True)
     flat_number = serializers.SerializerMethodField()
     block_name = serializers.SerializerMethodField()
+    occupancy_type = serializers.SerializerMethodField()
+    is_primary = serializers.SerializerMethodField()
+    move_in_date = serializers.SerializerMethodField()
+    has_nominee = serializers.SerializerMethodField()
+    has_security = serializers.SerializerMethodField()
 
     class Meta:
         model = Users
@@ -43,11 +54,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'user_name',
             'user_phone',
             'user_email',
-            'society_id',      # <--- Added here
+            'society_id',
             'society_name',
             'role_name',
             'flat_number',
             'block_name',
+            'occupancy_type',
+            'is_primary',
+            'move_in_date',
+            'has_nominee',
+            'has_security',
         ]
         read_only_fields = ['user_id', 'user_phone', 'society_id']
 
@@ -59,6 +75,28 @@ class UserProfileSerializer(serializers.ModelSerializer):
         resident = Resident.objects.filter(user=obj).first()
         return resident.flat.block.block_name if (resident and resident.flat and resident.flat.block) else None
 
+    def get_occupancy_type(self, obj):
+        occ = Occupancy.objects.filter(resident__user=obj).first()
+        return occ.occupancy_type if occ else None
+
+    def get_is_primary(self, obj):
+        occ = Occupancy.objects.filter(resident__user=obj).first()
+        return occ.is_primary if occ else False
+
+    def get_move_in_date(self, obj):
+        resident = Resident.objects.filter(user=obj).first()
+        return resident.move_in_date if resident else None
+    def get_has_nominee(self, obj):
+        if not obj.society:
+            return True
+        config = SocietyFeatures.objects.filter(society=obj.society).first()
+        return config.has_nominee if (config and config.has_nominee is not None) else True
+
+    def get_has_security(self, obj):
+        if not obj.society:
+            return True
+        config = SocietyFeatures.objects.filter(society=obj.society).first()
+        return config.has_security if (config and config.has_security is not None) else True
 
 # 2. Change Password Serializer
 class ChangePasswordSerializer(serializers.Serializer):
@@ -79,3 +117,4 @@ class NomineeSerializer(serializers.ModelSerializer):
             'address',
         ]
         read_only_fields = ['nominee_id']
+

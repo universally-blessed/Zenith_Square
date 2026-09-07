@@ -32,7 +32,7 @@ class _FinanceScreenState extends State<FinanceScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back to Home',
-          onPressed: () => Navigator.pushReplacementNamed(context,'/home'),
+          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -187,9 +187,15 @@ class _PendingBillTabState extends State<_PendingBillTab> {
             children: [
               Card(
                 elevation: 0,
-                color: Colors.amber.shade50,
+                color: bill['is_overdue'] == true
+                    ? Colors.red.shade50
+                    : Colors.amber.shade50,
                 shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.amber.shade300),
+                  side: BorderSide(
+                    color: bill['is_overdue'] == true
+                        ? Colors.red.shade300
+                        : Colors.amber.shade300,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Padding(
@@ -213,13 +219,15 @@ class _PendingBillTabState extends State<_PendingBillTab> {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade100,
+                              color: bill['is_overdue'] == true
+                                  ? Colors.red.shade600
+                                  : Colors.orange.shade600,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text(
-                              'UNPAID',
-                              style: TextStyle(
-                                color: Colors.red,
+                            child: Text(
+                              bill['is_overdue'] == true ? 'OVERDUE' : 'UNPAID',
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -227,24 +235,66 @@ class _PendingBillTabState extends State<_PendingBillTab> {
                           ),
                         ],
                       ),
-                      const Divider(height: 24),
+                      const SizedBox(height: 8),
                       Text(
                         'Unit: ${bill['block_name']} - ${bill['flat_number']}',
                         style: TextStyle(color: Colors.grey.shade800),
                       ),
-                      const SizedBox(height: 4),
                       Text(
                         'Due Date: ${bill['due_date']}',
                         style: TextStyle(color: Colors.grey.shade800),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '₹${bill['payable_amount']}',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                      const Divider(height: 24),
+
+                      // Breakdown List
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Standard Maintenance:'),
+                          Text(
+                            '₹${bill['base_amount']}',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Late Fee (${bill['late_fee_percent']}%):'),
+                          Text(
+                            '+ ₹${bill['late_fee_amount']}',
+                            style: TextStyle(
+                              color: bill['is_overdue'] == true
+                                  ? Colors.red
+                                  : Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Payable:',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '₹${bill['total_payable']}',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: bill['is_overdue'] == true
+                                  ? Colors.red.shade800
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -256,7 +306,7 @@ class _PendingBillTabState extends State<_PendingBillTab> {
                     ? null
                     : () => _handlePayment(
                         bill['bill_id'],
-                        bill['payable_amount'].toString(),
+                        bill['total_payable'].toString(),
                       ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),

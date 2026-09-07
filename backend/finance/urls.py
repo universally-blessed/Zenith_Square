@@ -5,11 +5,13 @@ from .views import (
     ResidentPaymentHistoryView,
     SocietyExpensesView,
     ChairmanFinancialSummaryView,
+    GenerateMaintenanceBillsView
 )
 
 urlpatterns = [
     path('bill/latest/', ResidentPendingBillView.as_view(), name='latest-bill'),
     path('bill/pay/', SettleMaintenancePaymentView.as_view(), name='pay-bill'),
+    path('bills/generate/', GenerateMaintenanceBillsView.as_view(), name='generate-bills'),
     path('payment/history/', ResidentPaymentHistoryView.as_view(), name='payment-history'),
     path('expenses/', SocietyExpensesView.as_view(), name='society-expenses'),
     path('summary/', ChairmanFinancialSummaryView.as_view(), name='financial-summary'),

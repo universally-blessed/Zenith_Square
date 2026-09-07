@@ -32,7 +32,6 @@ class ResidentPendingBillView(APIView):
             'bill': MaintenanceBillSerializer(bill).data
         }, status=status.HTTP_200_OK)
 
-
 # 2. Settle Bill & Generate Payment Receipt
 class SettleMaintenancePaymentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -53,19 +52,26 @@ class SettleMaintenancePaymentView(APIView):
         if not bill:
             return Response({'success': False, 'error': 'Bill not found or already paid.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # 1. Update Bill status
+        # Compute dynamic final amount including late fee
+        society = bill.flat.block.society if (bill.flat and bill.flat.block) else None
+        final_amount = bill.payable_amount
+        if bill.due_date < datetime.date.today() and society and society.late_fee_percent:
+            late_fee = round((bill.payable_amount * Decimal(str(society.late_fee_percent))) / Decimal('100'), 2)
+            final_amount += late_fee
+
+        # 1. Update Bill
         bill.status = 'paid'
         bill.payer = request.user
         bill.save()
 
-        # 2. Record Payment
+        # 2. Record Payment with calculated amount
         payment_id = str(uuid.uuid4())[:5].upper()
         payment = Payment.objects.create(
             payment_id=payment_id,
             resident=resident,
             bill=bill,
             payment_type='MAINTENANCE',
-            amount=bill.payable_amount,
+            amount=final_amount,
             payment_method=payment_method,
             status='completed',
             payment_date=timezone.now()
@@ -87,7 +93,55 @@ class SettleMaintenancePaymentView(APIView):
             'receipt': PaymentReceiptSerializer(receipt).data
         }, status=status.HTTP_201_CREATED)
 
+class GenerateMaintenanceBillsView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
+    def post(self, request):
+        role_name = request.user.role.role_name.lower() if request.user.role else ''
+        if role_name not in ['chairman', 'secretary', 'admin']:
+            return Response({'success': False, 'error': 'Unauthorized. Chairman/Admin privilege required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        society = request.user.society
+        if not society:
+            return Response({'success': False, 'error': 'Society profile missing.'}, status=status.HTTP_404_NOT_FOUND)
+
+        bill_month = request.data.get('bill_month', datetime.datetime.now().strftime('%B %Y'))
+        due_date_str = request.data.get('due_date')
+        
+        # Default due date to 10th of next month if omitted
+        if due_date_str:
+            due_date = datetime.datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        else:
+            today = datetime.date.today()
+            due_date = (today.replace(day=1) + datetime.timedelta(days=32)).replace(day=10)
+
+        # Get all flats in this society
+        flats = Flats.objects.filter(block__society=society)
+        created_count = 0
+
+        for flat in flats:
+            # Avoid duplicate bills for the same month and flat
+            if not MaintenanceBill.objects.filter(flat=flat, bill_month=bill_month).exists():
+                MaintenanceBill.objects.create(
+                    bill_id=str(uuid.uuid4())[:6].upper(),
+                    flat=flat,
+                    bill_month=bill_month,
+                    payable_amount=society.standard_rate,
+                    due_date=due_date,
+                    status='pending'
+                )
+                created_count += 1
+
+        return Response({
+            'success': True,
+            'message': f'Generated {created_count} bills for {bill_month}.',
+            'bill_month': bill_month,
+            'due_date': str(due_date),
+            'standard_rate': float(society.standard_rate),
+            'late_fee_percent': float(society.late_fee_percent or 0)
+        }, status=status.HTTP_201_CREATED)
+    
 # 3. Payment History for Resident
 class ResidentPaymentHistoryView(APIView):
     permission_classes = [IsAuthenticated]

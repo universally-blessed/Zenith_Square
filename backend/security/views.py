@@ -5,8 +5,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from core_api.models import Resident, Flats
+from core_api.models import Resident, Flats,SocietyFeatures
 from .models import SecurityAlerts, Visitor, VisitorLogs
+
 from .serializers import (
     SecurityAlertSerializer,
     TriggerAlertSerializer,
@@ -86,6 +87,9 @@ class VisitorLogsListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        features = SocietyFeatures.objects.filter(society=request.user.society).first()
+        if features and features.has_security is False:
+            return Response({'success': False, 'error': 'Security panel & visitor logs are disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
         role_name = request.user.role.role_name.lower() if request.user.role else 'resident'
         
         # Resident sees visitors to their own flat; Chairman/Security sees all society visitors

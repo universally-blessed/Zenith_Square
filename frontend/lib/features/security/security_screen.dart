@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/datasource/security_api_service.dart';
+import '../../data/datasource/api_service.dart';
 
 class SecurityScreen extends StatefulWidget {
   const SecurityScreen({super.key});
@@ -11,11 +12,30 @@ class SecurityScreen extends StatefulWidget {
 class _SecurityScreenState extends State<SecurityScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _hasSecurity = true;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _checkFeature();
+  }
+
+  Future<void> _checkFeature() async {
+    try {
+      final profile = await ApiService.fetchUserProfile();
+      final hasSec = profile['has_security'] ?? true;
+      setState(() {
+        _hasSecurity = hasSec;
+        _tabController = TabController(length: hasSec ? 2 : 1, vsync: this);
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _tabController = TabController(length: 2, vsync: this);
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -26,6 +46,10 @@ class _SecurityScreenState extends State<SecurityScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Security & SOS Alerts'),
@@ -36,15 +60,15 @@ class _SecurityScreenState extends State<SecurityScreen>
         ),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Active Alerts & SOS'),
-            Tab(text: 'Visitor Logs'),
+          tabs: [
+            const Tab(text: 'Active Alerts & SOS'),
+            if (_hasSecurity) const Tab(text: 'Visitor Logs'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [_AlertsTab(), _VisitorsTab()],
+        children: [const _AlertsTab(), if (_hasSecurity) const _VisitorsTab()],
       ),
     );
   }

@@ -6,8 +6,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-
+from django.db import transaction
 from core_api.models import Resident
+from finance.models import SocietyExpenses 
 from .models import Amenity, AmenityBooking, Asset, AssetMaintenance,Vehicle
 from .serializers import (
     AmenitySerializer,
@@ -258,7 +259,6 @@ class AssetListCreateView(APIView):
         )
         return Response({'success': True, 'message': 'Asset registered successfully!', 'asset': AssetSerializer(asset).data}, status=status.HTTP_201_CREATED)
 
-
 class AssetMaintenanceListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -266,6 +266,7 @@ class AssetMaintenanceListCreateView(APIView):
         logs = AssetMaintenance.objects.filter(asset_id=asset_id, asset__society=request.user.society).order_by('-maintenance_date')
         return Response({'success': True, 'maintenance_logs': AssetMaintenanceSerializer(logs, many=True).data}, status=status.HTTP_200_OK)
 
+    @transaction.atomic
     def post(self, request, asset_id):
         role_name = request.user.role.role_name.lower() if request.user.role else ''
         if role_name not in ['chairman', 'secretary', 'admin']:
@@ -284,16 +285,31 @@ class AssetMaintenanceListCreateView(APIView):
         resident = Resident.objects.filter(user=request.user).first()
         recorded_by_id = resident.resident_id if resident else None
 
-        # 2. Save using resident_id
+        # 2. Save Asset Maintenance log
         log = AssetMaintenance.objects.create(
             maintenance_id=str(uuid.uuid4())[:6].upper(),
             asset=asset,
             recorded_by=recorded_by_id,
             **serializer.validated_data
         )
+
+        # 3. Automatically create corresponding entry in Society Expenses
+        cost = serializer.validated_data['maintenance_cost']
+        m_date = serializer.validated_data['maintenance_date']
+        desc = serializer.validated_data.get('description', '')
+
+        SocietyExpenses.objects.create(
+            expense_id=str(uuid.uuid4())[:6].upper(),
+            society=request.user.society,
+            expense_type='Asset Maintenance',
+            amount=cost,
+            payment_date=m_date,
+            description=f"Maintenance for {asset.asset_name} ({asset.asset_id}): {desc}".strip()
+        )
+
         return Response({
             'success': True, 
-            'message': 'Maintenance log recorded!', 
+            'message': 'Maintenance log recorded and society expense entry created!', 
             'log': AssetMaintenanceSerializer(log).data
         }, status=status.HTTP_201_CREATED)
 

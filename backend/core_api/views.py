@@ -3,11 +3,13 @@ import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.utils import timezone
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import update_last_login
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Societies, Blocks, Flats, Users, Resident, Roles, TemporaryOTP,Nominee
+from .models import Societies, Blocks, Flats, Users, Resident, Roles, TemporaryOTP,Nominee,Occupancy,SocietyFeatures
 from .serializers import SocietySerializer, BlockSerializer, RegisterResidentSerializer, UserProfileSerializer,ChangePasswordSerializer,NomineeSerializer
 
 # 1. Operational Endpoints (Dropdowns)
@@ -54,18 +56,54 @@ class RegisterResidentView(APIView):
         user.set_password(data['password'])
         user.save()
 
-        # 2. Look up Flat
-        flat_obj = Flats.objects.filter(flat_number=data['flatId']).first() or Flats.objects.filter(flat_id=data['flatId']).first()
+        # 2. Look up Flat (supports both block-based query and legacy formats)
+        flat_number_val = data.get('flatNumber') or data.get('flatId', '')
+        # Remove any stray 'A-' or 'B-' prefix if passed
+        clean_flat_num = flat_number_val.split('-')[-1].strip()
+        block_id_val = data.get('blockId')
 
-        # 3. Create Resident with explicit move_in_date
-        Resident.objects.create(
+        flat_obj = None
+        if block_id_val:
+            flat_obj = Flats.objects.filter(
+                block_id=block_id_val,
+                flat_number__in=[clean_flat_num, flat_number_val]
+            ).first()
+
+        # Fallback to direct flat_id or society-wide search if block wasn't matched
+        if not flat_obj:
+            flat_obj = Flats.objects.filter(
+                flat_number__in=[clean_flat_num, flat_number_val],
+                block__society_id=data['societyId']
+            ).first() or Flats.objects.filter(flat_id=flat_number_val).first()
+
+        if not flat_obj:
+            return Response({
+                'success': False, 
+                'error': f'Flat {flat_number_val} could not be found in the selected block/society.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # 3. Create Resident
+        resident = Resident.objects.create(
             resident_id=str(uuid.uuid4())[:6].upper(),
             user=user,
             flat=flat_obj,
-            move_in_date=datetime.date.today()  # <--- Satisfies the NOT NULL constraint
+            move_in_date=datetime.date.today()
         )
 
-        # 4. Generate OTP
+        # 4. Create Occupancy
+        occupancy_type = data.get('occupancyType', 'Owner')
+        # Check if a primary occupant already exists for this flat
+        has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
+
+        Occupancy.objects.create(
+            occupancy_id=str(uuid.uuid4())[:5].upper(),
+            flat=flat_obj,
+            resident=resident,
+            occupancy_type=occupancy_type,
+            is_primary=not has_primary
+        )
+
+        # 5. Generate OTP
         otp_code = TemporaryOTP.generate_otp(data['email'])
         print(f"\n==========================================")
         print(f" [REGISTRATION OTP] {data['email']} -> {otp_code}")
@@ -82,15 +120,23 @@ class VerifyOTPView(APIView):
         email = request.data.get('email')
         otp = request.data.get('otp')
 
-        record = TemporaryOTP.objects.filter(email=email, otp_code=otp).first()
+        if not email or not otp:
+            return Response({'success': False, 'error': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Combined lookup: validates both matching code and 10-minute validity in one query
+        cutoff = timezone.now() - datetime.timedelta(minutes=10)
+        record = TemporaryOTP.objects.filter(email=email, otp_code=otp, created_at__gte=cutoff).first()
+        
         if not record:
             return Response({'success': False, 'error': 'Invalid or expired OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # 2. Activate user
         user = Users.objects.filter(user_email=email).first()
         if user:
             user.is_active = True
             user.save()
 
+        # 3. Clean up OTP to prevent replay
         record.delete()
         return Response({'success': True, 'message': 'Account verified successfully!'}, status=status.HTTP_200_OK)
 
@@ -106,6 +152,9 @@ class LoginView(APIView):
 
         if not user.is_active:
             return Response({'success': False, 'error': 'Account not verified. Please verify your OTP.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Update last_login timestamp in users table
+        update_last_login(None, user)
 
         refresh = RefreshToken.for_user(user)
         role_name = user.role.role_name.lower() if user.role else 'resident'
@@ -170,7 +219,20 @@ class UserProfileView(APIView):
         serializer = UserProfileSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({'success': True, 'message': 'Profile updated successfully!', 'profile': serializer.data})
+
+            # Update move_in_date if passed
+            move_in_date = request.data.get('move_in_date')
+            if move_in_date:
+                resident = Resident.objects.filter(user=user).first()
+                if resident:
+                    resident.move_in_date = move_in_date
+                    resident.save()
+
+            return Response({
+                'success': True,
+                'message': 'Profile updated successfully!',
+                'profile': UserProfileSerializer(user).data
+            })
         first_err = next(iter(serializer.errors.values()))[0]
         return Response({'success': False, 'error': str(first_err)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -198,6 +260,9 @@ class NomineeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        features = SocietyFeatures.objects.filter(society=request.user.society).first()
+        if features and features.has_nominee is False:
+            return Response({'success': False, 'error': 'Nominee management is disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
         resident = Resident.objects.filter(user=request.user).first()
         if not resident:
             return Response({'success': False, 'error': 'Resident profile missing.'}, status=status.HTTP_404_NOT_FOUND)
@@ -210,6 +275,9 @@ class NomineeView(APIView):
         return Response({'success': True, 'nominee': serializer.data}, status=status.HTTP_200_OK)
 
     def post(self, request):
+        features = SocietyFeatures.objects.filter(society=request.user.society).first()
+        if features and features.has_nominee is False:
+            return Response({'success': False, 'error': 'Nominee management is disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
         resident = Resident.objects.filter(user=request.user).first()
         if not resident:
             return Response({'success': False, 'error': 'Resident profile missing.'}, status=status.HTTP_404_NOT_FOUND)

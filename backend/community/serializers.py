@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Meeting, SocietyCommittee, CommitteeChange, Polls,PollsOption,PollsResponse,LostFoundItem
+from .models import Meeting, SocietyCommittee, CommitteeChange, Polls,PollsOption,PollsResponse,LostFoundItem,Tenant
 
 class MeetingSerializer(serializers.ModelSerializer):
     organizer_name = serializers.CharField(source='organized_by.user_name', read_only=True)
@@ -52,7 +52,7 @@ class SocietyCommitteeSerializer(serializers.ModelSerializer):
 
 
 class CommitteeChangeSerializer(serializers.ModelSerializer):
-    requested_by_name = serializers.CharField(source='requested_by.user_name', read_only=True)
+    requested_by_name = serializers.SerializerMethodField()
     target_user_name = serializers.CharField(source='target_user.user_name', read_only=True)
     new_role_name = serializers.CharField(source='new_role.role_name', read_only=True)
 
@@ -70,6 +70,11 @@ class CommitteeChangeSerializer(serializers.ModelSerializer):
             'status',
         ]
         read_only_fields = ['request_id', 'requested_by', 'admin', 'status']
+
+    def get_requested_by_name(self, obj):
+        if obj.requested_by and obj.requested_by.user_name:
+            return obj.requested_by.user_name
+        return "Admin"
 
 
 class CreateCommitteeChangeRequestSerializer(serializers.Serializer):
@@ -167,3 +172,44 @@ class CreateLostFoundItemSerializer(serializers.Serializer):
     item_description = serializers.CharField()
     item_status = serializers.ChoiceField(choices=['Lost', 'Found'])
     item_location = serializers.CharField(max_length=100)
+
+class TenantSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='user.user_name', read_only=True)
+    tenant_phone = serializers.CharField(source='user.user_phone', read_only=True)
+    tenant_email = serializers.CharField(source='user.user_email', read_only=True)
+    owner_name = serializers.CharField(source='owner.user_name', read_only=True)
+    flat_number = serializers.CharField(source='flat.flat_number', read_only=True)
+    block_name = serializers.CharField(source='flat.block.block_name', read_only=True)
+
+    class Meta:
+        model = Tenant
+        fields = [
+            'tenant_id',
+            'user',
+            'tenant_name',
+            'tenant_phone',
+            'tenant_email',
+            'flat',
+            'flat_number',
+            'block_name',
+            'owner',
+            'owner_name',
+            'custom_maintenance',
+            'status',
+            'move_in_date',
+            'move_out_date',
+        ]
+        read_only_fields = ['tenant_id', 'status']
+
+
+class CreateTenantSerializer(serializers.Serializer):
+    # Tenant details
+    tenant_name = serializers.CharField(max_length=100)
+    tenant_phone = serializers.CharField(max_length=10)
+    tenant_email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    
+    # Unit & Lease info
+    flat_id = serializers.CharField(max_length=5)
+    owner_id = serializers.CharField(max_length=5, required=False, allow_blank=True, allow_null=True)
+    custom_maintenance = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    move_in_date = serializers.DateField()

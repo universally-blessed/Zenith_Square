@@ -12,6 +12,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _moveInDateController = TextEditingController();
 
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
@@ -23,6 +24,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfile();
   }
 
+  Future<void> _pickMoveInDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _moveInDateController.text.isNotEmpty
+          ? DateTime.tryParse(_moveInDateController.text) ?? DateTime.now()
+          : DateTime.now(),
+      firstDate: DateTime(1990),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        _moveInDateController.text =
+            "${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
+  }
+
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     try {
@@ -31,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profile = data;
         _nameController.text = data['user_name'] ?? '';
         _emailController.text = data['user_email'] ?? '';
+        _moveInDateController.text = data['move_in_date'] ?? '';
       });
     } catch (e) {
       _showToast(e.toString().replaceAll('Exception: ', ''), isError: true);
@@ -55,6 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final res = await ApiService.updateUserProfile({
         'user_name': _nameController.text.trim(),
         'user_email': _emailController.text.trim(),
+        'move_in_date': _moveInDateController.text.trim(),
       });
       _showToast(res['message'] ?? 'Profile updated!');
     } catch (e) {
@@ -68,6 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _moveInDateController.dispose();
     super.dispose();
   }
 
@@ -156,6 +177,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : null,
               ),
               const SizedBox(height: 16),
+              // Move-in Date Picker
+              TextFormField(
+                controller: _moveInDateController,
+                readOnly: true,
+                onTap: _pickMoveInDate,
+                decoration: const InputDecoration(
+                  labelText: 'Move-in Date',
+                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                  suffixIcon: Icon(Icons.edit_calendar_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               ElevatedButton(
                 onPressed: _isSaving ? null : _updateProfile,
@@ -176,13 +210,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 8),
 
               // Quick Actions
-              ListTile(
-                leading: const Icon(Icons.badge_outlined, color: Colors.blue),
-                title: const Text('Nominee Management'),
-                subtitle: const Text('View and update nominee details'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: () => Navigator.pushNamed(context, '/nominee'),
-              ),
+              if (_profile?['has_nominee'] == true) ...[
+                ListTile(
+                  leading: const Icon(Icons.badge_outlined, color: Colors.blue),
+                  title: const Text('Nominee Management'),
+                  subtitle: const Text('View and update nominee details'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                  onTap: () => Navigator.pushNamed(context, '/nominee'),
+                ),
+              ],
+
               ListTile(
                 leading: const Icon(Icons.lock_reset, color: Colors.orange),
                 title: const Text('Change Password'),

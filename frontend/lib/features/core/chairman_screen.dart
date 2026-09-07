@@ -150,6 +150,12 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
                     '/chairman-notices',
                   ),
                   _ActionItem(
+                    'Tenants',
+                    Icons.key_outlined,
+                    Colors.purple.shade700,
+                    '/chairman-tenants',
+                  ),
+                  _ActionItem(
                     'Amenities',
                     Icons.pool_outlined,
                     Colors.cyan.shade700,

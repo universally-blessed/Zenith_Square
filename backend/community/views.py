@@ -1,13 +1,14 @@
 import uuid
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from core_api.models import Users, Roles, Resident
-from .models import Meeting, SocietyCommittee, CommitteeChange, Polls,PollsOption,PollsResponse,LostFoundItem
+from core_api.models import Users, Roles, Resident,Flats
+from .models import Meeting, SocietyCommittee, CommitteeChange, Polls,PollsOption,PollsResponse,LostFoundItem,Tenant
 from .serializers import (
     MeetingSerializer,
     CreateMeetingSerializer,
@@ -18,7 +19,9 @@ from .serializers import (
     CreatePollSerializer,
     CastVoteSerializer,
     LostFoundItemSerializer,
-    CreateLostFoundItemSerializer
+    CreateLostFoundItemSerializer,
+    TenantSerializer,
+    CreateTenantSerializer
 )
 
 
@@ -90,12 +93,17 @@ class MeetingDetailUpdateView(APIView):
 
 
 # 3. Active Committee Members Listing
+# 3. Active Committee Members Listing
 class SocietyCommitteeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         society = request.user.society
-        committee_members = SocietyCommittee.objects.filter(society=society, status='Active')
+        committee_members = SocietyCommittee.objects.filter(
+            society=society, 
+            status='Active'
+        ).exclude(role_id='R01')  # <-- Exclude R01 records
+        
         return Response({
             'success': True,
             'committee_members': SocietyCommitteeSerializer(committee_members, many=True).data
@@ -110,9 +118,9 @@ class CommitteeChangeRequestView(APIView):
         if role_name not in ['chairman', 'secretary', 'admin']:
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Retrieve all active or past requests in this society
+        # Match requests either targeted at or requested by someone in this society
         requests = CommitteeChange.objects.filter(
-            requested_by__society=request.user.society
+            Q(target_user__society=request.user.society) | Q(requested_by__society=request.user.society)
         ).order_by('-request_id')
         
         return Response({
@@ -207,6 +215,7 @@ class SocietyMembersDropdownListView(APIView):
                 })
 
         return Response({'success': True, 'members': data}, status=status.HTTP_200_OK)
+    
 # Dual-Approval Handler & Cancellation
 class HandleCommitteeChangeActionView(APIView):
     permission_classes = [IsAuthenticated]
@@ -215,7 +224,7 @@ class HandleCommitteeChangeActionView(APIView):
     def patch(self, request, request_id):
         current_user = request.user
         current_role = current_user.role.role_name.lower() if current_user.role else ''
-        action = request.data.get('action')  # 'Approved', 'Rejected', or 'Cancelled'
+        action = request.data.get('action')
 
         if action not in ['Approved', 'Rejected', 'Cancelled']:
             return Response({
@@ -223,13 +232,18 @@ class HandleCommitteeChangeActionView(APIView):
                 'error': "Invalid action. Use 'Approved', 'Rejected', or 'Cancelled'."
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # 1. Fetch by target_user's society so admin vs chairman society mismatches don't cause 404s
         req_obj = CommitteeChange.objects.select_for_update().filter(
-            request_id=request_id,
-            requested_by__society=current_user.society
+            request_id=request_id
         ).first()
 
         if not req_obj:
             return Response({'success': False, 'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Verify society boundary (ensure chairman is acting only on their own society)
+        target_society = req_obj.target_user.society if hasattr(req_obj.target_user, 'society') else current_user.society
+        if current_role == 'chairman' and target_society != current_user.society:
+            return Response({'success': False, 'error': 'Unauthorized for this society.'}, status=status.HTTP_403_FORBIDDEN)
 
         # Ensure request is in a pending state
         if req_obj.status not in ['Pending_Admin_Approval', 'Pending_Chairman_Approval']:
@@ -238,30 +252,20 @@ class HandleCommitteeChangeActionView(APIView):
                 'error': f'Request cannot be altered because it is already {req_obj.status}.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Case 1: Initiator Cancels Their Own Request
+        # Case 1: Initiator Cancels
         if action == 'Cancelled':
             if req_obj.requested_by != current_user:
-                return Response({
-                    'success': False,
-                    'error': 'Only the initiator can cancel this request.'
-                }, status=status.HTTP_403_FORBIDDEN)
+                return Response({'success': False, 'error': 'Only the initiator can cancel this request.'}, status=status.HTTP_403_FORBIDDEN)
 
             req_obj.status = 'Cancelled'
             req_obj.save()
-            return Response({
-                'success': True,
-                'message': 'Role change request has been cancelled.',
-                'request': CommitteeChangeSerializer(req_obj).data
-            }, status=status.HTTP_200_OK)
+            return Response({'success': True, 'message': 'Role change request has been cancelled.', 'request': CommitteeChangeSerializer(req_obj).data}, status=status.HTTP_200_OK)
 
         # Case 2: Approvals & Rejections (Must be the counter-party)
         if req_obj.requested_by == current_user:
-            return Response({
-                'success': False,
-                'error': 'Self-approval is forbidden. The other party (Chairman/Admin) must approve or reject.'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response({'success': False, 'error': 'Self-approval is forbidden. The other party must approve or reject.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Enforce exact role match for approval/rejection
+        # Enforce exact role match
         if req_obj.status == 'Pending_Admin_Approval' and current_role != 'admin':
             return Response({'success': False, 'error': 'Admin approval required for this request.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -269,30 +273,35 @@ class HandleCommitteeChangeActionView(APIView):
             return Response({'success': False, 'error': 'Chairman approval required for this request.'}, status=status.HTTP_403_FORBIDDEN)
 
         req_obj.status = action
-        req_obj.admin = current_user
+        if current_role == 'admin':
+            req_obj.admin = current_user
         req_obj.save()
 
         # If Approved, finalize role and committee updates
         if action == 'Approved':
-            # 1. Update target user's role
             req_obj.target_user.role = req_obj.new_role
             req_obj.target_user.save()
 
-            # 2. Update/Insert society_committee record
-            comm_member, created = SocietyCommittee.objects.get_or_create(
-                user=req_obj.target_user,
-                society=current_user.society,
-                defaults={
-                    'committee_id': str(uuid.uuid4())[:6].upper(),
-                    'role': req_obj.new_role,
-                    'election_date': timezone.now().date(),
-                    'status': 'Active'
-                }
-            )
-            if not created:
-                comm_member.role = req_obj.new_role
-                comm_member.status = 'Active'
-                comm_member.save()
+            if req_obj.new_role.role_id == 'R01':
+                SocietyCommittee.objects.filter(
+                    user=req_obj.target_user,
+                    society=target_society
+                ).delete()
+            else:
+                comm_member, created = SocietyCommittee.objects.get_or_create(
+                    user=req_obj.target_user,
+                    society=target_society,
+                    defaults={
+                        'committee_id': str(uuid.uuid4())[:6].upper(),
+                        'role': req_obj.new_role,
+                        'election_date': timezone.now().date(),
+                        'status': 'Active'
+                    }
+                )
+                if not created:
+                    comm_member.role = req_obj.new_role
+                    comm_member.status = 'Active'
+                    comm_member.save()
 
         return Response({
             'success': True,
@@ -503,4 +512,145 @@ class LostFoundItemClaimView(APIView):
             'success': True,
             'message': f'Item status updated to {new_status}.',
             'item': LostFoundItemSerializer(item).data
+        }, status=status.HTTP_200_OK)
+
+class TenantListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        role_name = request.user.role.role_name.lower() if request.user.role else ''
+        if role_name not in ['chairman', 'secretary', 'admin']:
+            return Response({'success': False, 'error': 'Unauthorized access.'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenants = Tenant.objects.filter(
+            flat__block__society=request.user.society
+        ).select_related('user', 'flat', 'owner', 'flat__block').order_by('-move_in_date')
+
+        return Response({
+            'success': True,
+            'tenants': TenantSerializer(tenants, many=True).data
+        }, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    def post(self, request):
+        role_name = request.user.role.role_name.lower() if request.user.role else ''
+        if role_name not in ['chairman', 'secretary', 'admin']:
+            return Response({'success': False, 'error': 'Unauthorized. Chairman privilege required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = CreateTenantSerializer(data=request.data)
+        if not serializer.is_valid():
+            first_err = next(iter(serializer.errors.values()))[0]
+            return Response({'success': False, 'error': str(first_err)}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+
+        # 1. Validate Flat belongs to this Society
+        flat = Flats.objects.filter(flat_id=data['flat_id'], block__society=request.user.society).first()
+        if not flat:
+            return Response({'success': False, 'error': 'Selected flat was not found in your society.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Check if flat already has an active tenant
+        active_tenant = Tenant.objects.filter(flat=flat, status='active').exists()
+        if active_tenant:
+            return Response({'success': False, 'error': 'An active tenant is already registered for this flat.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Resolve Owner (from request or from flat's resident/owner record)
+        owner = None
+        if data.get('owner_id'):
+            owner = Users.objects.filter(user_id=data['owner_id'], society=request.user.society).first()
+        if not owner:
+            primary_res = Resident.objects.filter(flat=flat).select_related('user').first()
+            if primary_res:
+                owner = primary_res.user
+
+        # 4. Resolve or Create the Tenant User Account
+        tenant_user = Users.objects.filter(user_phone=data['tenant_phone']).first()
+        if not tenant_user:
+            # Default resident role 'R01' or fallback
+            default_role = Roles.objects.filter(role_id='R01').first() or request.user.role
+            tenant_user = Users.objects.create(
+                user_id=str(uuid.uuid4())[:5].upper(),
+                society=request.user.society,
+                user_name=data['tenant_name'],
+                user_phone=data['tenant_phone'],
+                user_email=data.get('tenant_email'),
+                role=default_role,
+                password='pbkdf2_sha256$default_temporary_hash',
+                is_active=True
+            )
+
+        # 5. Create Tenant Record
+        new_tenant = Tenant.objects.create(
+            tenant_id=str(uuid.uuid4())[:6].upper(),
+            user=tenant_user,
+            flat=flat,
+            owner=owner,
+            custom_maintenance=data.get('custom_maintenance'),
+            status='active',
+            move_in_date=data['move_in_date']
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Tenant registered successfully!',
+            'tenant': TenantSerializer(new_tenant).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class SocietyFlatsDropdownListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        flats = Flats.objects.filter(
+            block__society=request.user.society
+        ).select_related('block').order_by('block__block_name', 'flat_number')
+
+        flats_data = [
+            {
+                'flat_id': f.flat_id,
+                'flat_number': f.flat_number,
+                'block_name': f.block.block_name if f.block else '',
+                'display_label': f"{f.block.block_name} - {f.flat_number}" if f.block else f.flat_number
+            }
+            for f in flats
+        ]
+        return Response({'success': True, 'flats': flats_data}, status=status.HTTP_200_OK)
+
+class TenantMoveOutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def patch(self, request, tenant_id):
+        role_name = request.user.role.role_name.lower() if request.user.role else ''
+        if role_name not in ['chairman', 'secretary', 'admin']:
+            return Response({'success': False, 'error': 'Unauthorized. Chairman privilege required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant = Tenant.objects.filter(
+            tenant_id=tenant_id,
+            flat__block__society=request.user.society
+        ).first()
+
+        if not tenant:
+            return Response({'success': False, 'error': 'Tenant record not found in this society.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if tenant.status == 'inactive':
+            return Response({'success': False, 'error': 'This tenant has already been marked as moved out.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Allow Chairman to optionally specify a move-out date, defaulting to today
+        move_out_date_str = request.data.get('move_out_date')
+        if move_out_date_str:
+            try:
+                tenant.move_out_date = timezone.datetime.strptime(move_out_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'success': False, 'error': 'Invalid date format. Expected YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            tenant.move_out_date = timezone.now().date()
+
+        tenant.status = 'inactive'
+        tenant.save()
+
+        return Response({
+            'success': True,
+            'message': 'Tenant marked as moved out successfully.',
+            'tenant': TenantSerializer(tenant).data
         }, status=status.HTTP_200_OK)

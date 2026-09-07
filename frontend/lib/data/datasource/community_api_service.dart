@@ -356,4 +356,97 @@ class CommunityApiService {
       throw Exception(data['error'] ?? 'Failed to update item status');
     }
   }
+
+  // Fetch All Tenants (GET /tenants/)
+  static Future<List<dynamic>> fetchTenants() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/tenants/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['tenants'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load tenants');
+    }
+  }
+
+  // Fetch Flats for Selection Dropdown (GET /flats-dropdown/)
+  static Future<List<dynamic>> fetchFlatsDropdown() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/flats-dropdown/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['flats'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load flats');
+    }
+  }
+
+  // Register New Tenant (POST /tenants/)
+  static Future<Map<String, dynamic>> addTenant({
+    required String tenantName,
+    required String tenantPhone,
+    String? tenantEmail,
+    required String flatId,
+    String? ownerId,
+    double? customMaintenance,
+    required String moveInDate,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/tenants/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'tenant_name': tenantName,
+        'tenant_phone': tenantPhone,
+        'tenant_email': tenantEmail,
+        'flat_id': flatId,
+        'owner_id': ownerId,
+        'custom_maintenance': customMaintenance,
+        'move_in_date': moveInDate,
+      }),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 201 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to register tenant');
+    }
+  }
+
+  // Mark Tenant as Moved Out (PATCH /api/community/tenants/<id>/move-out/)
+  static Future<Map<String, dynamic>> markTenantMoveOut(
+    String tenantId, {
+    String? moveOutDate,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/tenants/$tenantId/move-out/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({if (moveOutDate != null) 'move_out_date': moveOutDate}),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to mark tenant move-out');
+    }
+  }
 }

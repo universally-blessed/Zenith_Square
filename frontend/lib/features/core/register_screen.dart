@@ -23,8 +23,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<Society> _societies = [];
   List<Block> _blocks = [];
 
+  String _selectedOccupancyType = 'Owner';
   String? _selectedSocietyId;
-  String? _selectedBlockId;
+  String? _selectedBlockId = 'Owner';
 
   bool _isLoadingSocieties = false;
   bool _isLoadingBlocks = false;
@@ -78,23 +79,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      // 1. Get the selected block name or block ID (e.g., 'A')
-      final selectedBlock = _blocks.firstWhere(
-        (b) => b.id == _selectedBlockId,
-        orElse: () => Block(id: '', name: ''),
-      );
-
       final rawFlatNumber = _flatController.text.trim();
 
-      // 2. Format Flat Identifier:
-      // If user typed '101' and selected block 'A', combine them into 'A-101'.
-      // If user already typed 'A-101', use it as-is.
-      final String formattedFlatId;
-      if (selectedBlock.name.isNotEmpty && !rawFlatNumber.contains('-')) {
-        formattedFlatId = '${selectedBlock.name.substring(6)}-$rawFlatNumber';
-      } else {
-        formattedFlatId = rawFlatNumber;
-      }
+      // Extract pure number (e.g., if user typed "A-201", get "201")
+      final cleanFlatNumber = rawFlatNumber.contains('-')
+          ? rawFlatNumber.split('-').last.trim()
+          : rawFlatNumber;
 
       final payload = {
         'name': _nameController.text.trim(),
@@ -102,12 +92,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'email': _emailController.text.trim(),
         'password': _passwordController.text,
         'societyId': _selectedSocietyId,
-        'flatId': formattedFlatId, // Sends "A-101"
+        'blockId': _selectedBlockId,
+        'flatNumber': cleanFlatNumber,
+        'flatId': cleanFlatNumber,
+        'occupancyType': _selectedOccupancyType,
       };
-
-      // Debug print to verify the payload before sending
-      debugPrint('Registration Payload: $payload');
-
       final response = await ApiService.registerResident(payload);
 
       if (mounted) {
@@ -297,7 +286,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       : null,
                 ),
                 const SizedBox(height: 16),
-
+                // Occupancy Type Dropdown
+                DropdownButtonFormField<String>(
+                  value: _selectedOccupancyType,
+                  decoration: const InputDecoration(
+                    labelText: 'Occupancy Type',
+                    prefixIcon: Icon(Icons.person_pin_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Owner', child: Text('Owner')),
+                    DropdownMenuItem(value: 'Tenant', child: Text('Tenant')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _selectedOccupancyType = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                const SizedBox(height: 16),
                 // Password
                 TextFormField(
                   controller: _passwordController,
