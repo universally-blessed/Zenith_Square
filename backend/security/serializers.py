@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from .models import SecurityAlerts, Visitor, VisitorLogs
 
@@ -20,8 +21,26 @@ class SecurityAlertSerializer(serializers.ModelSerializer):
 
 
 class TriggerAlertSerializer(serializers.Serializer):
-    alert_type = serializers.CharField(max_length=50)
-    description = serializers.CharField()
+    alert_type = serializers.ChoiceField(
+        choices=[
+            'Medical Emergency',
+            'Fire Emergency',
+            'Lift Stuck',
+            'Theft / Intruder',
+            'Other Emergency',
+        ],
+        error_messages={'invalid_choice': 'Invalid emergency category.'}
+    )
+    description = serializers.CharField(
+        min_length=5,
+        max_length=500,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Emergency details and location are required.',
+            'blank': 'Please describe the emergency location or issue.',
+            'min_length': 'Description must be at least 5 characters long.',
+        }
+    )
 
 
 class VisitorSerializer(serializers.ModelSerializer):
@@ -56,7 +75,42 @@ class VisitorLogSerializer(serializers.ModelSerializer):
 
 
 class LogVisitorEntrySerializer(serializers.Serializer):
-    visitor_name = serializers.CharField(max_length=100)
-    visitor_phone = serializers.CharField(max_length=10)
-    flat_id = serializers.CharField(max_length=5)
-    purpose = serializers.CharField(max_length=200)
+    visitor_name = serializers.CharField(
+        max_length=100,
+        min_length=2,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Visitor name is required.',
+            'blank': 'Visitor name cannot be blank.',
+            'min_length': 'Name must be at least 2 characters.',
+        }
+    )
+    visitor_phone = serializers.CharField(
+        max_length=10,
+        min_length=10,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Visitor phone number is required.',
+            'blank': 'Phone number cannot be blank.',
+            'max_length': 'Phone number must be exactly 10 digits.',
+            'min_length': 'Phone number must be exactly 10 digits.',
+        }
+    )
+    flat_id = serializers.CharField(
+        max_length=5,
+        error_messages={'required': 'Destination flat is required.'}
+    )
+    purpose = serializers.CharField(
+        max_length=200,
+        min_length=3,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Visit purpose is required.',
+            'blank': 'Purpose cannot be blank.',
+        }
+    )
+
+    def validate_visitor_phone(self, value):
+        if not re.match(r'^[6-9]\d{9}$', value):
+            raise serializers.ValidationError('Enter a valid 10-digit mobile number.')
+        return value

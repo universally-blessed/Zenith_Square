@@ -27,6 +27,7 @@ import './features/community/lost_found_screen.dart';
 import './features/community/chairman_lost_found_screen.dart';
 import './features/security/security_screen.dart';
 import './features/security/chairman_security_screen.dart';
+import './features/finance/reports_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,6 +104,7 @@ class MyApp extends StatelessWidget {
         '/chairman-lost-found': (context) => const ChairmanLostFoundScreen(),
         '/chairman-security': (context) => const ChairmanSecurityScreen(),
         '/chairman-tenants': (context) => const TenantListScreen(),
+        '/chairman-reports': (context) => const SocietyReportsScreen(),
       },
     );
   }

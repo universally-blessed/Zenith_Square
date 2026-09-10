@@ -21,6 +21,10 @@ class TriggerEmergencyAlertView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        features = SocietyFeatures.objects.filter(society=request.user.society).first()
+        if features and features.has_security is False:
+            return Response({'success': False, 'error': 'Security alerts are disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = TriggerAlertSerializer(data=request.data)
         if not serializer.is_valid():
             first_err = next(iter(serializer.errors.values()))[0]
@@ -47,6 +51,10 @@ class ActiveSecurityAlertsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        features = SocietyFeatures.objects.filter(society=request.user.society).first()
+        if features and features.has_security is False:
+            return Response({'success': False, 'error': 'Security features are disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
+
         society = request.user.society
         alerts = SecurityAlerts.objects.filter(
             triggered_by__society=society,
@@ -57,7 +65,6 @@ class ActiveSecurityAlertsView(APIView):
             'success': True,
             'alerts': SecurityAlertSerializer(alerts, many=True).data
         }, status=status.HTTP_200_OK)
-
 
 # 3. Dismiss / Resolve Emergency Alert (Chairman / Security / Admin)
 class DismissSecurityAlertView(APIView):

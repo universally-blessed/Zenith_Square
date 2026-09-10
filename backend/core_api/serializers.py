@@ -1,5 +1,6 @@
+import re
 from rest_framework import serializers
-from .models import Societies, Blocks, Users, Nominee, Resident, Occupancy,SocietyFeatures
+from .models import Societies, Blocks, Users, Nominee, Resident, Occupancy, SocietyFeatures
 
 class SocietySerializer(serializers.ModelSerializer):
     id = serializers.CharField(source='society_id')
@@ -20,18 +21,58 @@ class BlockSerializer(serializers.ModelSerializer):
 
 
 class RegisterResidentSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=100)
-    phone = serializers.CharField(max_length=10)
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-    societyId = serializers.CharField(max_length=5)
-    blockId = serializers.CharField(max_length=5, required=False)
-    flatNumber = serializers.CharField(max_length=20, required=False)
-    flatId = serializers.CharField(max_length=20, required=False)
+    name = serializers.CharField(
+        max_length=100,
+        min_length=2,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Full name is required.',
+            'blank': 'Full name cannot be blank.',
+            'min_length': 'Name must be at least 2 characters long.',
+        }
+    )
+    phone = serializers.CharField(
+        max_length=10,
+        min_length=10,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Mobile number is required.',
+            'blank': 'Mobile number cannot be blank.',
+            'max_length': 'Mobile number must be exactly 10 digits.',
+            'min_length': 'Mobile number must be exactly 10 digits.',
+        }
+    )
+    email = serializers.EmailField(
+        error_messages={
+            'required': 'Email address is required.',
+            'blank': 'Email cannot be blank.',
+            'invalid': 'Enter a valid email address.',
+        }
+    )
+    password = serializers.CharField(
+        write_only=True,
+        min_length=6,
+        error_messages={
+            'required': 'Password is required.',
+            'min_length': 'Password must be at least 6 characters long.',
+        }
+    )
+    societyId = serializers.CharField(
+        max_length=5,
+        error_messages={'required': 'Society selection is required.'}
+    )
+    blockId = serializers.CharField(max_length=5, required=False, allow_blank=True, allow_null=True)
+    flatNumber = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
+    flatId = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
     occupancyType = serializers.ChoiceField(
-        choices=['Owner', 'Tenant'], 
+        choices=['Owner', 'Tenant'],
         default='Owner'
     )
+
+    def validate_phone(self, value):
+        if not re.match(r'^[6-9]\d{9}$', value):
+            raise serializers.ValidationError('Enter a valid 10-digit Indian mobile number.')
+        return value
 
 
 # 1. Profile Serializer (Read & Update)
@@ -46,6 +87,24 @@ class UserProfileSerializer(serializers.ModelSerializer):
     move_in_date = serializers.SerializerMethodField()
     has_nominee = serializers.SerializerMethodField()
     has_security = serializers.SerializerMethodField()
+
+    user_name = serializers.CharField(
+        max_length=100,
+        min_length=2,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Full name is required.',
+            'blank': 'Full name cannot be blank.',
+            'min_length': 'Name must be at least 2 characters long.',
+        }
+    )
+    user_email = serializers.EmailField(
+        error_messages={
+            'required': 'Email address is required.',
+            'blank': 'Email cannot be blank.',
+            'invalid': 'Enter a valid email address.',
+        }
+    )
 
     class Meta:
         model = Users
@@ -86,6 +145,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_move_in_date(self, obj):
         resident = Resident.objects.filter(user=obj).first()
         return resident.move_in_date if resident else None
+
     def get_has_nominee(self, obj):
         if not obj.society:
             return True
@@ -98,14 +158,76 @@ class UserProfileSerializer(serializers.ModelSerializer):
         config = SocietyFeatures.objects.filter(society=obj.society).first()
         return config.has_security if (config and config.has_security is not None) else True
 
+
 # 2. Change Password Serializer
 class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(required=True)
-    new_password = serializers.CharField(required=True)
+    old_password = serializers.CharField(
+        required=True,
+        error_messages={'required': 'Current password is required.'}
+    )
+    new_password = serializers.CharField(
+        required=True,
+        min_length=6,
+        error_messages={
+            'required': 'New password is required.',
+            'min_length': 'New password must be at least 6 characters long.',
+        }
+    )
+
+    def validate(self, data):
+        if data['old_password'] == data['new_password']:
+            raise serializers.ValidationError({'new_password': 'New password cannot be identical to current password.'})
+        return data
 
 
 # 3. Nominee Serializer (CRUD)
 class NomineeSerializer(serializers.ModelSerializer):
+    nominee_name = serializers.CharField(
+        max_length=100,
+        min_length=2,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Nominee name is required.',
+            'blank': 'Nominee name cannot be blank.',
+            'min_length': 'Nominee name must be at least 2 characters.',
+        }
+    )
+    relationship = serializers.CharField(
+        max_length=50,
+        min_length=2,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Relationship is required.',
+            'blank': 'Please specify the relationship.',
+        }
+    )
+    phone = serializers.CharField(
+        max_length=10,
+        min_length=10,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Nominee phone number is required.',
+            'blank': 'Phone number cannot be blank.',
+            'max_length': 'Phone number must be exactly 10 digits.',
+            'min_length': 'Phone number must be exactly 10 digits.',
+        }
+    )
+    email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        error_messages={'invalid': 'Enter a valid email address.'}
+    )
+    address = serializers.CharField(
+        min_length=5,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Nominee address is required.',
+            'blank': 'Address cannot be blank.',
+            'min_length': 'Address must be at least 5 characters.',
+        }
+    )
+
     class Meta:
         model = Nominee
         fields = [
@@ -118,3 +240,7 @@ class NomineeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['nominee_id']
 
+    def validate_phone(self, value):
+        if not re.match(r'^[6-9]\d{9}$', value):
+            raise serializers.ValidationError('Enter a valid 10-digit mobile number.')
+        return value

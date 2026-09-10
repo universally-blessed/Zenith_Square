@@ -32,7 +32,7 @@ class _MeetingsScreenState extends State<MeetingsScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () => Navigator.pushReplacementNamed(context, "/home"),
+          onPressed: () => Navigator.pop(context),
         ),
         bottom: TabBar(
           controller: _tabController,

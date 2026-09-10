@@ -15,7 +15,7 @@ class _ChairmanMeetingsScreenState extends State<ChairmanMeetingsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -28,18 +28,21 @@ class _ChairmanMeetingsScreenState extends State<ChairmanMeetingsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meetings & Committee'),
+        title: const Text('Meetings & Community'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
           onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+              Navigator.pop(context), // Replaces pushReplacementNamed
         ),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(text: 'Meetings'),
             Tab(text: 'Committee'),
+            Tab(text: 'Residents Directory'),
             Tab(text: 'Role Approvals'),
           ],
         ),
@@ -49,6 +52,7 @@ class _ChairmanMeetingsScreenState extends State<ChairmanMeetingsScreen>
         children: const [
           _ChairmanMeetingsTab(),
           _ChairmanCommitteeTab(),
+          _ChairmanResidentsDirectoryTab(),
           _ChairmanRoleApprovalsTab(),
         ],
       ),
@@ -126,6 +130,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
     }
   }
 
+  // Update _openScheduleMeetingSheet in _ChairmanMeetingsTabState:
   void _openScheduleMeetingSheet() {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
@@ -135,6 +140,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
     DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
     TimeOfDay selectedTime = const TimeOfDay(hour: 18, minute: 0);
     bool isSubmitting = false;
+    String? modalError;
 
     showModalBottomSheet(
       context: context,
@@ -177,7 +183,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                   TextFormField(
                     controller: titleController,
                     decoration: const InputDecoration(
-                      labelText: 'Meeting Title',
+                      labelText: 'Meeting Title *',
                       hintText: 'e.g. Annual General Body Meeting (AGM)',
                       border: OutlineInputBorder(),
                     ),
@@ -190,7 +196,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                     controller: agendaController,
                     maxLines: 3,
                     decoration: const InputDecoration(
-                      labelText: 'Meeting Agenda',
+                      labelText: 'Meeting Agenda *',
                       hintText: 'List topics, discussions, or proposals...',
                       border: OutlineInputBorder(),
                     ),
@@ -202,7 +208,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                   TextFormField(
                     controller: locationController,
                     decoration: const InputDecoration(
-                      labelText: 'Venue / Meeting Room',
+                      labelText: 'Venue / Meeting Room *',
                       hintText: 'e.g. Society Clubhouse, Block A Lawn',
                       border: OutlineInputBorder(),
                     ),
@@ -217,7 +223,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text(
-                            'Date',
+                            'Date *',
                             style: TextStyle(fontSize: 12),
                           ),
                           subtitle: Text(
@@ -245,7 +251,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text(
-                            'Time',
+                            'Time *',
                             style: TextStyle(fontSize: 12),
                           ),
                           subtitle: Text(
@@ -275,13 +281,40 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+
+                  // INLINE ERROR BANNER
+                  if (modalError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Text(
+                        modalError!,
+                        style: TextStyle(
+                          color: Colors.red.shade900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   ElevatedButton(
                     onPressed: isSubmitting
                         ? null
                         : () async {
                             if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
+                            setModalState(() {
+                              isSubmitting = true;
+                              modalError = null;
+                            });
                             try {
                               final dateStr =
                                   '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
@@ -314,15 +347,13 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                                 _loadMeetings();
                               }
                             } catch (e) {
-                              setModalState(() => isSubmitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll('Exception: ', ''),
-                                  ),
-                                  backgroundColor: Colors.red.shade700,
-                                ),
-                              );
+                              setModalState(() {
+                                isSubmitting = false;
+                                modalError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
                             }
                           },
                     style: ElevatedButton.styleFrom(
@@ -664,6 +695,8 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
     });
   }
 
+  // Update _openRoleChangeRequestModal in _ChairmanCommitteeTabState:
+  // Update _openRoleChangeRequestModal in _ChairmanCommitteeTabState:
   void _openRoleChangeRequestModal() async {
     List<dynamic> members = [];
     try {
@@ -678,6 +711,7 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
         : null;
     String selectedRoleId = 'R02';
     bool isSubmitting = false;
+    String? modalError;
 
     showModalBottomSheet(
       context: context,
@@ -710,7 +744,6 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
                 ),
                 const SizedBox(height: 14),
 
-                // Resident Dropdown
                 if (members.isEmpty)
                   const Text(
                     'No resident profiles found.',
@@ -721,7 +754,7 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
                     value: selectedUserId,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                      labelText: 'Select Society Resident',
+                      labelText: 'Select Society Resident *',
                       border: OutlineInputBorder(),
                     ),
                     items: members.map((m) {
@@ -742,11 +775,10 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
                   ),
                 const SizedBox(height: 12),
 
-                // Role Dropdown
                 DropdownButtonFormField<String>(
                   value: selectedRoleId,
                   decoration: const InputDecoration(
-                    labelText: 'Proposed Role',
+                    labelText: 'Proposed Role *',
                     border: OutlineInputBorder(),
                   ),
                   items: const [
@@ -762,14 +794,40 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
                     if (v != null) setModalState(() => selectedRoleId = v);
                   },
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
+
+                // INLINE ERROR BANNER
+                if (modalError != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Text(
+                      modalError!,
+                      style: TextStyle(
+                        color: Colors.red.shade900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 ElevatedButton(
                   onPressed: isSubmitting || selectedUserId == null
                       ? null
                       : () async {
                           if (!formKey.currentState!.validate()) return;
-                          setModalState(() => isSubmitting = true);
+                          setModalState(() {
+                            isSubmitting = true;
+                            modalError = null;
+                          });
                           try {
                             final res =
                                 await CommunityApiService.submitRoleChangeRequest(
@@ -789,15 +847,13 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
                               _loadCommittee();
                             }
                           } catch (e) {
-                            setModalState(() => isSubmitting = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  e.toString().replaceAll('Exception: ', ''),
-                                ),
-                                backgroundColor: Colors.red.shade700,
-                              ),
-                            );
+                            setModalState(() {
+                              isSubmitting = false;
+                              modalError = e.toString().replaceAll(
+                                'Exception: ',
+                                '',
+                              );
+                            });
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -932,7 +988,262 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
 }
 
 // -------------------------------------------------------------
-// TAB 3: DUAL-APPROVAL QUEUE & REQUEST CANCELLATIONS
+// TAB 3: RESIDENTS DIRECTORY (WITH BLOCK FILTER & SEARCH)
+// -------------------------------------------------------------
+class _ChairmanResidentsDirectoryTab extends StatefulWidget {
+  const _ChairmanResidentsDirectoryTab();
+
+  @override
+  State<_ChairmanResidentsDirectoryTab> createState() =>
+      _ChairmanResidentsDirectoryTabState();
+}
+
+class _ChairmanResidentsDirectoryTabState
+    extends State<_ChairmanResidentsDirectoryTab> {
+  List<dynamic> _residents = [];
+  List<dynamic> _blocks = [];
+  String _selectedBlockId = 'all';
+  String _searchQuery = '';
+  bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDirectory();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchDirectory() async {
+    setState(() => _isLoading = true);
+    try {
+      final res = await CommunityApiService.fetchResidentsDirectory(
+        blockId: _selectedBlockId,
+        search: _searchQuery,
+      );
+      if (mounted) {
+        setState(() {
+          _residents = res['residents'] ?? [];
+          _blocks = res['blocks'] ?? [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // 1. Search Bar & Block Filter
+        Container(
+          padding: const EdgeInsets.all(12),
+          color: Colors.white,
+          child: Column(
+            children: [
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search by resident name or flat #',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                            _fetchDirectory();
+                          },
+                        )
+                      : null,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onSubmitted: (val) {
+                  setState(() => _searchQuery = val);
+                  _fetchDirectory();
+                },
+              ),
+              const SizedBox(height: 10),
+              // Block Filter Chips
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    FilterChip(
+                      label: const Text('All Blocks'),
+                      selected: _selectedBlockId == 'all',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedBlockId = 'all');
+                          _fetchDirectory();
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ..._blocks.map((b) {
+                      final isSelected = _selectedBlockId == b['block_id'];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: FilterChip(
+                          label: Text(b['block_name'] ?? ''),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedBlockId = selected
+                                  ? b['block_id']
+                                  : 'all';
+                            });
+                            _fetchDirectory();
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+
+        // 2. Residents List
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _residents.isEmpty
+              ? const Center(child: Text('No residents match your criteria.'))
+              : RefreshIndicator(
+                  onRefresh: _fetchDirectory,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _residents.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final r = _residents[i];
+                      final occupancyType = (r['occupancy_type'] ?? 'Owner')
+                          .toString();
+                      final isTenant = occupancyType.toLowerCase() == 'tenant';
+
+                      return Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isTenant
+                                ? Colors.purple.shade50
+                                : Colors.teal.shade50,
+                            child: Text(
+                              (r['user_name'] ?? 'R')
+                                  .substring(0, 1)
+                                  .toUpperCase(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isTenant
+                                    ? Colors.purple.shade800
+                                    : Colors.teal.shade800,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            r['user_name'] ?? 'Unknown',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            'Unit: ${r['block_name'] ?? ''} - ${r['flat_number'] ?? '--'}\nPhone: ${r['user_phone'] ?? 'N/A'}',
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          isThreeLine: true,
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // Role Badge (e.g. Resident, Secretary)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.shade50,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  r['role_name'] ?? 'Resident',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.teal.shade900,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              // Occupancy Badge (Owner vs Tenant)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isTenant
+                                      ? Colors.purple.shade50
+                                      : Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: isTenant
+                                        ? Colors.purple.shade200
+                                        : Colors.blue.shade200,
+                                  ),
+                                ),
+                                child: Text(
+                                  occupancyType,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isTenant
+                                        ? Colors.purple.shade900
+                                        : Colors.blue.shade900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// -------------------------------------------------------------
+// TAB 4: DUAL-APPROVAL QUEUE & REQUEST CANCELLATIONS
 // -------------------------------------------------------------
 class _ChairmanRoleApprovalsTab extends StatefulWidget {
   const _ChairmanRoleApprovalsTab();

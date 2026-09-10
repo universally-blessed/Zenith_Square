@@ -21,6 +21,31 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscureNewPass = true;
   bool _obscureConfirmPass = true;
 
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
@@ -48,8 +73,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             backgroundColor: Colors.green.shade700,
           ),
         );
-
-        // Clear stack and send user to Login
         Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
       }
     } catch (e) {
@@ -80,33 +103,42 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Enter the OTP sent to ${widget.email} along with your new password.',
+                  'Enter the verification code sent to ${widget.email} along with your new password.',
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 // OTP Field
+                _buildFieldLabel('Verification Code', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _otpController,
                   keyboardType: TextInputType.number,
+                  maxLength: 6,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(
-                    labelText: 'OTP Code',
+                    hintText: '4 or 6-digit code',
                     prefixIcon: Icon(Icons.pin_outlined),
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter the OTP'
-                      : null,
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Please enter the OTP code';
+                    if (val.length < 4) return 'Enter a valid code';
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // New Password
+                _buildFieldLabel('New Password', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _newPasswordController,
                   obscureText: _obscureNewPass,
                   decoration: InputDecoration(
-                    labelText: 'New Password',
+                    hintText: 'Minimum 6 characters',
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
@@ -120,21 +152,25 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                   ),
                   validator: (v) {
-                    if (v == null || v.isEmpty)
+                    if (v == null || v.isEmpty) {
                       return 'Please enter new password';
-                    if (v.length < 6)
+                    }
+                    if (v.length < 6) {
                       return 'Password must be at least 6 characters';
+                    }
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Confirm New Password
+                _buildFieldLabel('Confirm New Password', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPass,
                   decoration: InputDecoration(
-                    labelText: 'Confirm New Password',
+                    hintText: 'Re-enter new password',
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
@@ -149,10 +185,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                   ),
                   validator: (v) {
-                    if (v == null || v.isEmpty)
+                    if (v == null || v.isEmpty) {
                       return 'Please confirm your password';
-                    if (v != _newPasswordController.text)
+                    }
+                    if (v != _newPasswordController.text) {
                       return 'Passwords do not match';
+                    }
                     return null;
                   },
                 ),
@@ -171,7 +209,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         )
                       : const Text(
                           'Reset Password',
-                          style: TextStyle(fontSize: 16),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                 ),
               ],

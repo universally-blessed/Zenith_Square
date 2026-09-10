@@ -10,7 +10,7 @@ class PollsScreen extends StatefulWidget {
 
 class _PollsScreenState extends State<PollsScreen> {
   late Future<List<dynamic>> _pollsFuture;
-  final Map<String, String> _selectedOptionByPoll = {};
+  final Map<String, String?> _selectedOptionByPoll = {};
   final Set<String> _votingPollIds = {};
 
   @override
@@ -34,12 +34,70 @@ class _PollsScreenState extends State<PollsScreen> {
     );
   }
 
-  Future<void> _handleVote(String pollId) async {
+  Future<void> _handleVote(String pollId, String optionText) async {
     final selectedOptionId = _selectedOptionByPoll[pollId];
     if (selectedOptionId == null) {
-      _showToast('Please select an option to vote', isError: true);
+      _showToast('Please select an option before submitting', isError: true);
       return;
     }
+
+    // Explicit Confirmation Modal
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Your Vote'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('You are casting your vote for:'),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                optionText,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade900,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '⚠️ Notice: Votes cannot be edited, retracted, or changed once cast.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Review Choice'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade800,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm & Submit'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     setState(() => _votingPollIds.add(pollId));
 
@@ -67,7 +125,7 @@ class _PollsScreenState extends State<PollsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () => Navigator.pushReplacementNamed(context, "/home"),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: FutureBuilder<List<dynamic>>(
@@ -136,6 +194,18 @@ class _PollsScreenState extends State<PollsScreen> {
                 final totalVotes = (poll['total_votes'] ?? 0) as int;
                 final options = (poll['options'] as List<dynamic>?) ?? [];
                 final isSubmitting = _votingPollIds.contains(pollId);
+
+                // Look up selected option label for confirmation dialog
+                String selectedOptionText = '';
+                if (_selectedOptionByPoll[pollId] != null) {
+                  final found = options.firstWhere(
+                    (o) => o['option_id'] == _selectedOptionByPoll[pollId],
+                    orElse: () => null,
+                  );
+                  if (found != null) {
+                    selectedOptionText = found['option_text'] ?? '';
+                  }
+                }
 
                 return Card(
                   elevation: 0,
@@ -207,7 +277,7 @@ class _PollsScreenState extends State<PollsScreen> {
                         ],
                         const SizedBox(height: 12),
 
-                        // Options Display (Voting / Results)
+                        // Options Display
                         ...options.map((opt) {
                           final optionId = opt['option_id'];
                           final optionText = opt['option_text'] ?? '';
@@ -217,8 +287,10 @@ class _PollsScreenState extends State<PollsScreen> {
                               : 0.0;
                           final isUserChoice =
                               (hasVoted && userVotedOptionId == optionId);
+                          final isChecked =
+                              _selectedOptionByPoll[pollId] == optionId;
 
-                          // Result bar view (if voted or closed)
+                          // If voted or closed: Show frozen result statistics
                           if (hasVoted || isClosed) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(
@@ -248,6 +320,9 @@ class _PollsScreenState extends State<PollsScreen> {
                                               fontWeight: isUserChoice
                                                   ? FontWeight.bold
                                                   : FontWeight.normal,
+                                              color: isUserChoice
+                                                  ? Colors.green.shade900
+                                                  : Colors.black87,
                                             ),
                                           ),
                                         ],
@@ -276,22 +351,25 @@ class _PollsScreenState extends State<PollsScreen> {
                             );
                           }
 
-                          // Radio button selector view (if eligible to vote)
-                          return RadioListTile<String>(
+                          // Unvoted State: Interactive checkbox tile (allows check and uncheck)
+                          return CheckboxListTile(
                             contentPadding: EdgeInsets.zero,
                             visualDensity: VisualDensity.compact,
-                            value: optionId,
-                            groupValue: _selectedOptionByPoll[pollId],
+                            value: isChecked,
                             title: Text(
                               optionText,
                               style: const TextStyle(fontSize: 14),
                             ),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(
-                                  () => _selectedOptionByPoll[pollId] = val,
-                                );
-                              }
+                            controlAffinity: ListTileControlAffinity.leading,
+                            activeColor: Colors.orange.shade800,
+                            onChanged: (bool? checked) {
+                              setState(() {
+                                if (checked == true) {
+                                  _selectedOptionByPoll[pollId] = optionId;
+                                } else {
+                                  _selectedOptionByPoll[pollId] = null;
+                                }
+                              });
                             },
                           );
                         }),
@@ -303,7 +381,9 @@ class _PollsScreenState extends State<PollsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Total Votes: $totalVotes • By $createdBy',
+                              hasVoted
+                                  ? 'Your vote is locked • Total: $totalVotes'
+                                  : 'Total Votes: $totalVotes • By $createdBy',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey.shade600,
@@ -311,9 +391,14 @@ class _PollsScreenState extends State<PollsScreen> {
                             ),
                             if (!hasVoted && !isClosed)
                               ElevatedButton(
-                                onPressed: isSubmitting
+                                onPressed:
+                                    isSubmitting ||
+                                        _selectedOptionByPoll[pollId] == null
                                     ? null
-                                    : () => _handleVote(pollId),
+                                    : () => _handleVote(
+                                        pollId,
+                                        selectedOptionText,
+                                      ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange.shade700,
                                   foregroundColor: Colors.white,

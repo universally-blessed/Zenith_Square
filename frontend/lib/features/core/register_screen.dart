@@ -25,7 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String _selectedOccupancyType = 'Owner';
   String? _selectedSocietyId;
-  String? _selectedBlockId = 'Owner';
+  String? _selectedBlockId;
 
   bool _isLoadingSocieties = false;
   bool _isLoadingBlocks = false;
@@ -37,6 +37,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     _loadSocieties();
+  }
+
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
   }
 
   Future<void> _loadSocieties() async {
@@ -80,8 +105,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final rawFlatNumber = _flatController.text.trim();
-
-      // Extract pure number (e.g., if user typed "A-201", get "201")
       final cleanFlatNumber = rawFlatNumber.contains('-')
           ? rawFlatNumber.split('-').last.trim()
           : rawFlatNumber;
@@ -135,6 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Resident Registration')),
@@ -146,76 +170,87 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Full Name
+                _buildFieldLabel('Full Name', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _nameController,
+                  maxLength: 100,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
-                    labelText: 'Full Name',
+                    hintText: 'Enter full name',
                     prefixIcon: Icon(Icons.person_outline),
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter your full name'
-                      : null,
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Please enter your full name';
+                    if (val.length < 2) {
+                      return 'Name must be at least 2 characters';
+                    }
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Phone Number
+                _buildFieldLabel('Phone Number', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
+                  maxLength: 10,
                   textInputAction: TextInputAction.next,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(10),
                   ],
                   decoration: const InputDecoration(
-                    labelText: 'Phone Number',
+                    hintText: '10-digit mobile number',
                     prefixIcon: Icon(Icons.phone_outlined),
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
                   validator: (v) {
-                    if (v == null || v.isEmpty) {
-                      return 'Please enter phone number';
-                    }
-                    if (v.length != 10) {
-                      return 'Phone number must be exactly 10 digits';
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Please enter phone number';
+                    if (!phoneRegex.hasMatch(val)) {
+                      return 'Enter valid 10-digit mobile (starts with 6-9)';
                     }
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Email Address
+                _buildFieldLabel('Email Address', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
-                    labelText: 'Email Address',
+                    hintText: 'yourname@example.com',
                     prefixIcon: Icon(Icons.email_outlined),
                     border: OutlineInputBorder(),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Please enter email';
-                    }
-                    if (!emailRegex.hasMatch(v.trim())) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Please enter email';
+                    if (!emailRegex.hasMatch(val)) {
                       return 'Please enter a valid email address';
                     }
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Society Dropdown
+                _buildFieldLabel('Select Society', isRequired: true),
+                const SizedBox(height: 6),
                 _isLoadingSocieties
                     ? const Center(child: LinearProgressIndicator())
                     : DropdownButtonFormField<String>(
                         value: _selectedSocietyId,
+                        isExpanded: true,
                         decoration: const InputDecoration(
-                          labelText: 'Select Society',
                           prefixIcon: Icon(Icons.location_city_outlined),
                           border: OutlineInputBorder(),
                         ),
@@ -223,7 +258,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             .map(
                               (s) => DropdownMenuItem(
                                 value: s.id,
-                                child: Text(s.name),
+                                child: Text(
+                                  s.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             )
                             .toList(),
@@ -236,15 +274,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: (v) =>
                             v == null ? 'Please select a society' : null,
                       ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Block Dropdown
+                _buildFieldLabel('Select Block', isRequired: true),
+                const SizedBox(height: 6),
                 _isLoadingBlocks
                     ? const Center(child: LinearProgressIndicator())
                     : DropdownButtonFormField<String>(
                         value: _selectedBlockId,
+                        isExpanded: true,
                         decoration: const InputDecoration(
-                          labelText: 'Select Block',
                           prefixIcon: Icon(Icons.domain_outlined),
                           border: OutlineInputBorder(),
                         ),
@@ -252,7 +291,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             .map(
                               (b) => DropdownMenuItem(
                                 value: b.id,
-                                child: Text(b.name),
+                                child: Text(
+                                  b.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             )
                             .toList(),
@@ -262,35 +304,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: (v) =>
                             v == null ? 'Please select a block' : null,
                       ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Flat Number / ID
+                _buildFieldLabel('Flat Number', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _flatController,
                   textInputAction: TextInputAction.next,
-                  keyboardType: TextInputType.text,
-                  decoration: InputDecoration(
-                    labelText: 'Flat Number',
-                    hintText: '101',
-                    prefixIcon: const Icon(Icons.home_outlined),
-                    prefixText: (_selectedBlockId != null && _blocks.isNotEmpty)
-                        ? '${_blocks.firstWhere(
-                            (b) => b.id == _selectedBlockId,
-                            orElse: () => Block(id: "", name: ""),
-                          ).name}-'
-                        : null,
-                    border: const OutlineInputBorder(),
+                  maxLength: 10,
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. 101, 204',
+                    prefixIcon: Icon(Icons.home_outlined),
+                    border: OutlineInputBorder(),
+                    counterText: '',
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Please enter flat number'
                       : null,
                 ),
-                const SizedBox(height: 16),
-                // Occupancy Type Dropdown
+                const SizedBox(height: 14),
+
+                _buildFieldLabel('Occupancy Type', isRequired: true),
+                const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   value: _selectedOccupancyType,
                   decoration: const InputDecoration(
-                    labelText: 'Occupancy Type',
                     prefixIcon: Icon(Icons.person_pin_outlined),
                     border: OutlineInputBorder(),
                   ),
@@ -304,15 +342,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     }
                   },
                 ),
-                const SizedBox(height: 16),
-                const SizedBox(height: 16),
-                // Password
+                const SizedBox(height: 14),
+
+                _buildFieldLabel('Password', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Password',
+                    hintText: 'At least 6 characters',
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
@@ -333,15 +372,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Confirm Password
+                _buildFieldLabel('Confirm Password', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
-                    labelText: 'Confirm Password',
+                    hintText: 'Re-enter password',
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
@@ -368,7 +408,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Submit Button
                 ElevatedButton(
                   onPressed: _isSubmitting ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(
@@ -380,7 +419,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Register', style: TextStyle(fontSize: 16)),
+                      : const Text(
+                          'Register',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 16),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Already have an account?",
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/login',
+                        (route) => false,
+                      ),
+                      child: const Text('Sign In'),
+                    ),
+                  ],
                 ),
               ],
             ),

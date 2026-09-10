@@ -25,16 +25,20 @@ class _SecurityScreenState extends State<SecurityScreen>
     try {
       final profile = await ApiService.fetchUserProfile();
       final hasSec = profile['has_security'] ?? true;
-      setState(() {
-        _hasSecurity = hasSec;
-        _tabController = TabController(length: hasSec ? 2 : 1, vsync: this);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasSecurity = hasSec;
+          _tabController = TabController(length: hasSec ? 2 : 1, vsync: this);
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      setState(() {
-        _tabController = TabController(length: 2, vsync: this);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _tabController = TabController(length: 2, vsync: this);
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -56,7 +60,8 @@ class _SecurityScreenState extends State<SecurityScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () => Navigator.pushReplacementNamed(context, "/home"),
+          onPressed: () =>
+              Navigator.pop(context), // Replaced pushReplacementNamed with pop
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -94,17 +99,45 @@ class _AlertsTabState extends State<_AlertsTab> {
   }
 
   void _loadAlerts() {
+    if (!mounted) return;
     setState(() {
       _alertsFuture = SecurityApiService.fetchActiveSecurityAlerts();
     });
   }
 
-  void _showTriggerSosModal() {
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
+  Future<void> _showTriggerSosModal() async {
+    final formKey = GlobalKey<FormState>();
     String selectedType = 'Medical Emergency';
     final descController = TextEditingController();
     bool isSubmitting = false;
+    String? sheetError;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -120,174 +153,221 @@ class _AlertsTabState extends State<_AlertsTab> {
               top: 20,
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.red,
-                          size: 28,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Broadcast SOS Alert',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
                             color: Colors.red,
+                            size: 28,
                           ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'This will immediately alert gate security and society management.',
-                  style: TextStyle(fontSize: 13, color: Colors.black87),
-                ),
-                const SizedBox(height: 16),
-
-                // Alert Type Dropdown
-                DropdownButtonFormField<String>(
-                  value: selectedType,
-                  decoration: const InputDecoration(
-                    labelText: 'Emergency Type',
-                    border: OutlineInputBorder(),
+                          SizedBox(width: 8),
+                          Text(
+                            'Broadcast SOS Alert',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Medical Emergency',
-                      child: Text('Medical Emergency 🚑'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Fire Emergency',
-                      child: Text('Fire Hazard 🔥'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Lift Stuck',
-                      child: Text('Lift / Elevator Stuck 🛗'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Theft / Intruder',
-                      child: Text('Theft / Suspicious Activity 🚨'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Other Emergency',
-                      child: Text('Other Emergency ⚠️'),
-                    ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) setModalState(() => selectedType = val);
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Description Input
-                TextField(
-                  controller: descController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Location / Emergency Details',
-                    hintText: 'e.g., Block B Lift 2 stopped, resident inside',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'This will immediately alert gate security and society management.',
+                    style: TextStyle(fontSize: 13, color: Colors.black87),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                ElevatedButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          final desc = descController.text.trim();
-                          if (desc.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Please describe the emergency location/issue',
-                                ),
-                                backgroundColor: Colors.red,
+                  _buildFieldLabel('Emergency Type', isRequired: true),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: selectedType,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Medical Emergency',
+                        child: Text('Medical Emergency'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Fire Emergency',
+                        child: Text('Fire Hazard'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Lift Stuck',
+                        child: Text('Lift / Elevator Stuck'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Theft / Intruder',
+                        child: Text('Theft / Suspicious Activity'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Other Emergency',
+                        child: Text('Other Emergency'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => selectedType = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel(
+                    'Location / Emergency Details',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: descController,
+                    maxLines: 3,
+                    maxLength: 500,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g., Block B Lift 2 stopped, resident inside',
+                      border: OutlineInputBorder(),
+                      counterText: '',
+                    ),
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) {
+                        return 'Please describe the emergency location/issue';
+                      }
+                      if (val.length < 5) {
+                        return 'Details must be at least 5 characters long';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // INLINE ERROR BANNER
+                  if (sheetError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sheetError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
                               ),
-                            );
-                            return;
-                          }
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
 
-                          setModalState(() => isSubmitting = true);
-                          try {
-                            final res =
-                                await SecurityApiService.triggerEmergencyAlert(
-                                  alertType: selectedType,
-                                  description: desc,
-                                );
-                            if (mounted) {
-                              Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    res['message'] ?? 'Alert broadcasted!',
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
+                            setModalState(() {
+                              isSubmitting = true;
+                              sheetError = null;
+                            });
+                            try {
+                              final res =
+                                  await SecurityApiService.triggerEmergencyAlert(
+                                    alertType: selectedType,
+                                    description: descController.text.trim(),
+                                  );
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      res['message'] ?? 'Alert broadcasted!',
+                                    ),
+                                    backgroundColor: Colors.red.shade800,
                                   ),
-                                  backgroundColor: Colors.red.shade800,
-                                ),
-                              );
-                              _loadAlerts();
+                                );
+                                _loadAlerts();
+                              }
+                            } catch (e) {
+                              setModalState(() {
+                                isSubmitting = false;
+                                sheetError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
                             }
-                          } catch (e) {
-                            setModalState(() => isSubmitting = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  e.toString().replaceAll('Exception: ', ''),
-                                ),
-                                backgroundColor: Colors.red.shade800,
-                              ),
-                            );
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'BROADCAST SOS NOW',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
                   ),
-                  child: isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'BROADCAST SOS NOW',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
       ),
     );
+
+    descController.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // SOS Button Top Banner
         Padding(
           padding: const EdgeInsets.all(12.0),
           child: Material(
@@ -318,7 +398,6 @@ class _AlertsTabState extends State<_AlertsTab> {
           ),
         ),
 
-        // Live Alerts List
         Expanded(
           child: FutureBuilder<List<dynamic>>(
             future: _alertsFuture,
@@ -502,6 +581,7 @@ class _VisitorsTabState extends State<_VisitorsTab> {
   }
 
   void _loadVisitors() {
+    if (!mounted) return;
     setState(() {
       _visitorsFuture = SecurityApiService.fetchVisitorLogs();
     });

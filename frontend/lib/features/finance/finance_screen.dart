@@ -15,7 +15,7 @@ class _FinanceScreenState extends State<FinanceScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -31,14 +31,15 @@ class _FinanceScreenState extends State<FinanceScreen>
         title: const Text('Finance & Maintenance'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          tooltip: 'Back to Home',
-          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
         ),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
             Tab(text: 'Due Bill'),
             Tab(text: 'History'),
+            Tab(text: 'Incomes'),
             Tab(text: 'Expenses'),
           ],
         ),
@@ -48,6 +49,7 @@ class _FinanceScreenState extends State<FinanceScreen>
         children: const [
           _PendingBillTab(),
           _PaymentHistoryTab(),
+          _SocietyIncomesTab(),
           _SocietyExpensesTab(),
         ],
       ),
@@ -246,7 +248,6 @@ class _PendingBillTabState extends State<_PendingBillTab> {
                       ),
                       const Divider(height: 24),
 
-                      // Breakdown List
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -410,7 +411,106 @@ class _PaymentHistoryTabState extends State<_PaymentHistoryTab> {
 }
 
 // -------------------------------------------------------------
-// TAB 3: SOCIETY SHARED EXPENSES
+// TAB 3: RESIDENT VIEW OF SOCIETY INCOMES (READ-ONLY)
+// -------------------------------------------------------------
+class _SocietyIncomesTab extends StatefulWidget {
+  const _SocietyIncomesTab();
+
+  @override
+  State<_SocietyIncomesTab> createState() => _SocietyIncomesTabState();
+}
+
+class _SocietyIncomesTabState extends State<_SocietyIncomesTab> {
+  late Future<List<dynamic>> _incomesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _incomesFuture = FinanceApiService.fetchSocietyIncome();
+  }
+
+  void _refresh() {
+    setState(() {
+      _incomesFuture = FinanceApiService.fetchSocietyIncome();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<dynamic>>(
+      future: _incomesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final incomes = snapshot.data ?? [];
+        if (incomes.isEmpty) {
+          return const Center(child: Text('No society incomes recorded.'));
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async => _refresh(),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(12.0),
+            itemCount: incomes.length,
+            separatorBuilder: (ctx, i) => const SizedBox(height: 8),
+            itemBuilder: (ctx, i) {
+              final inc = incomes[i];
+              return Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFE0F2F1),
+                    child: Icon(Icons.savings_outlined, color: Colors.teal),
+                  ),
+                  title: Text(
+                    inc['income_type'] ?? 'Income',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    (inc['description'] != null &&
+                            inc['description'].toString().isNotEmpty)
+                        ? inc['description']
+                        : 'No description provided',
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '+₹${inc['amount']}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      Text(
+                        inc['received_date'] ?? '',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// -------------------------------------------------------------
+// TAB 4: SOCIETY SHARED EXPENSES
 // -------------------------------------------------------------
 class _SocietyExpensesTab extends StatefulWidget {
   const _SocietyExpensesTab();
@@ -473,6 +573,7 @@ class _SocietyExpensesTabState extends State<_SocietyExpensesTab> {
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: Colors.redAccent,
                       ),
                     ),
                     Text(

@@ -60,3 +60,20 @@ class SocietyExpenses(models.Model):
         db_table = 'society_expenses'
         verbose_name = 'Society Expense'
         verbose_name_plural = 'Society Expenses'
+
+class SocietyIncome(models.Model):
+    income_id = models.CharField(primary_key=True, max_length=6)
+    society = models.ForeignKey('core_api.Societies', models.DO_NOTHING, db_column='society_id', blank=True, null=True)
+    income_type = models.CharField(max_length=50)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    received_date = models.DateField(default=timezone.now)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'society_income'
+        verbose_name = 'Society Income'
+        verbose_name_plural = 'Society Incomes'
+
+    def __str__(self):
+        return f"{self.income_type} - {self.amount}"

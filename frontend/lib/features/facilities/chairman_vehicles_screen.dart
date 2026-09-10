@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/datasource/facilities_api_service.dart';
 
 class ChairmanVehiclesScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _ChairmanVehiclesScreenState extends State<ChairmanVehiclesScreen>
 
   @override
   Widget build(BuildContext context) {
+    // In ChairmanVehiclesScreen.build:
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vehicle & Parking Directory'),
@@ -33,7 +35,7 @@ class _ChairmanVehiclesScreenState extends State<ChairmanVehiclesScreen>
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
           onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+              Navigator.pop(context), // Replaced pushReplacementNamed
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -355,12 +357,38 @@ class _ChairmanPersonalVehiclesTabState
     });
   }
 
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   void _openAddVehicleSheet() {
     final formKey = GlobalKey<FormState>();
     final numberController = TextEditingController();
     final allotmentController = TextEditingController();
     String selectedType = '4-Wheeler';
     bool isSubmitting = false;
+    String? sheetError;
 
     showModalBottomSheet(
       context: context,
@@ -394,28 +422,48 @@ class _ChairmanPersonalVehiclesTabState
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(ctx),
+                      onPressed: () {
+                        numberController.dispose();
+                        allotmentController.dispose();
+                        Navigator.pop(ctx);
+                      },
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
+
+                _buildFieldLabel('Vehicle Plate Number', isRequired: true),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: numberController,
                   textCapitalization: TextCapitalization.characters,
+                  maxLength: 12,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                  ],
                   decoration: const InputDecoration(
-                    labelText: 'Vehicle Plate Number',
                     hintText: 'e.g. GJ01AB1234',
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter plate number'
-                      : null,
+                  validator: (v) {
+                    final val = v?.trim().toUpperCase() ?? '';
+                    if (val.isEmpty) return 'Please enter plate number';
+                    if (val.length < 6)
+                      return 'Invalid vehicle registration number (min 6 chars)';
+                    if (!RegExp(r'^[A-Z0-9]+$').hasMatch(val)) {
+                      return 'Only letters and numbers allowed (no spaces or symbols)';
+                    }
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
+
+                _buildFieldLabel('Vehicle Type', isRequired: true),
+                const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   value: selectedType,
                   decoration: const InputDecoration(
-                    labelText: 'Vehicle Type',
                     border: OutlineInputBorder(),
                   ),
                   items: const [
@@ -433,25 +481,73 @@ class _ChairmanPersonalVehiclesTabState
                     if (val != null) setModalState(() => selectedType = val);
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
+
+                _buildFieldLabel(
+                  'Parking Slot / Sticker Tag',
+                  isRequired: true,
+                ),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: allotmentController,
+                  maxLength: 30,
                   decoration: const InputDecoration(
-                    labelText: 'Parking Slot / Sticker Tag',
-                    hintText: 'e.g. P-101',
+                    hintText: 'e.g. P-101, B-SLOT-04',
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter parking slot'
-                      : null,
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Enter parking slot or sticker tag';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
+
+                // INLINE ERROR BANNER
+                if (sheetError != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: Colors.red.shade800,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            sheetError!,
+                            style: TextStyle(
+                              color: Colors.red.shade900,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
                 ElevatedButton(
                   onPressed: isSubmitting
                       ? null
                       : () async {
                           if (!formKey.currentState!.validate()) return;
-                          setModalState(() => isSubmitting = true);
+                          setModalState(() {
+                            isSubmitting = true;
+                            sheetError = null;
+                          });
                           try {
                             final res =
                                 await FacilitiesApiService.registerVehicle(
@@ -463,6 +559,8 @@ class _ChairmanPersonalVehiclesTabState
                                       .trim(),
                                 );
                             if (mounted) {
+                              numberController.dispose();
+                              allotmentController.dispose();
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -475,15 +573,13 @@ class _ChairmanPersonalVehiclesTabState
                               _loadVehicles();
                             }
                           } catch (e) {
-                            setModalState(() => isSubmitting = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  e.toString().replaceAll('Exception: ', ''),
-                                ),
-                                backgroundColor: Colors.red.shade700,
-                              ),
-                            );
+                            setModalState(() {
+                              isSubmitting = false;
+                              sheetError = e.toString().replaceAll(
+                                'Exception: ',
+                                '',
+                              );
+                            });
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -501,7 +597,11 @@ class _ChairmanPersonalVehiclesTabState
                         )
                       : const Text(
                           'Add Vehicle',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                 ),
               ],

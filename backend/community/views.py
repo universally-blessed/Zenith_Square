@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from core_api.models import Users, Roles, Resident,Flats
+from core_api.models import Users, Roles, Resident,Flats,Occupancy
 from .models import Meeting, SocietyCommittee, CommitteeChange, Polls,PollsOption,PollsResponse,LostFoundItem,Tenant
 from .serializers import (
     MeetingSerializer,
@@ -21,7 +21,8 @@ from .serializers import (
     LostFoundItemSerializer,
     CreateLostFoundItemSerializer,
     TenantSerializer,
-    CreateTenantSerializer
+    CreateTenantSerializer,
+    ResidentMemberSerializer
 )
 
 
@@ -384,9 +385,12 @@ class CastVoteView(APIView):
         if poll.status != 'active' or poll.end_date < timezone.now().date():
             return Response({'success': False, 'error': 'This poll is closed for voting.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Ensure single vote per user
+        # Enforce strict immutability: Re-voting or switching is completely blocked
         if PollsResponse.objects.filter(poll=poll, user=request.user).exists():
-            return Response({'success': False, 'error': 'You have already voted on this poll.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                'success': False, 
+                'error': 'You have already cast your vote for this poll. Votes cannot be changed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         option = PollsOption.objects.filter(option_id=data['option_id'], poll=poll).first()
         if not option:
@@ -514,6 +518,66 @@ class LostFoundItemClaimView(APIView):
             'item': LostFoundItemSerializer(item).data
         }, status=status.HTTP_200_OK)
 
+class SocietyFlatsDropdownListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        flats = Flats.objects.filter(
+            block__society=request.user.society
+        ).select_related('block').order_by('block__block_name', 'flat_number')
+
+        flats_data = [
+            {
+                'flat_id': f.flat_id,
+                'flat_number': f.flat_number,
+                'block_name': f.block.block_name if f.block else '',
+                'display_label': f"{f.block.block_name} - {f.flat_number}" if f.block else f.flat_number
+            }
+            for f in flats
+        ]
+        return Response({'success': True, 'flats': flats_data}, status=status.HTTP_200_OK)
+
+class SocietyResidentDirectoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        role_name = request.user.role.role_name.lower() if request.user.role else ''
+        if role_name not in ['chairman', 'secretary', 'admin']:
+            return Response(
+                {'success': False, 'error': 'Unauthorized. Privilege required.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Base queryset: only residents in this society
+        residents = Resident.objects.filter(
+            flat__block__society=request.user.society
+        ).select_related('user', 'flat', 'flat__block', 'user__role').order_by('flat__block__block_name', 'flat__flat_number')
+
+        # 1. Block Filter
+        block_id = request.query_params.get('block_id')
+        if block_id and block_id.lower() != 'all':
+            residents = residents.filter(flat__block__block_id=block_id)
+
+        # 2. Search Filter (by resident name, flat number, or phone)
+        search = request.query_params.get('search')
+        if search:
+            search = search.strip()
+            residents = residents.filter(
+                Q(user__user_name__icontains=search) |
+                Q(flat__flat_number__icontains=search) |
+                Q(user__user_phone__icontains=search)
+            )
+
+        # 3. Retrieve available blocks in this society for frontend filter dropdown
+        from core_api.models import Blocks
+        blocks = Blocks.objects.filter(society=request.user.society).values('block_id', 'block_name').order_by('block_name')
+
+        return Response({
+            'success': True,
+            'residents': ResidentMemberSerializer(residents, many=True).data,
+            'blocks': list(blocks)
+        }, status=status.HTTP_200_OK)
+
 class TenantListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -550,11 +614,10 @@ class TenantListCreateView(APIView):
             return Response({'success': False, 'error': 'Selected flat was not found in your society.'}, status=status.HTTP_404_NOT_FOUND)
 
         # 2. Check if flat already has an active tenant
-        active_tenant = Tenant.objects.filter(flat=flat, status='active').exists()
-        if active_tenant:
+        if Tenant.objects.filter(flat=flat, status='active').exists():
             return Response({'success': False, 'error': 'An active tenant is already registered for this flat.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 3. Resolve Owner (from request or from flat's resident/owner record)
+        # 3. Resolve Owner
         owner = None
         if data.get('owner_id'):
             owner = Users.objects.filter(user_id=data['owner_id'], society=request.user.society).first()
@@ -563,10 +626,9 @@ class TenantListCreateView(APIView):
             if primary_res:
                 owner = primary_res.user
 
-        # 4. Resolve or Create the Tenant User Account
+        # 4. Resolve or Create the Tenant User
         tenant_user = Users.objects.filter(user_phone=data['tenant_phone']).first()
         if not tenant_user:
-            # Default resident role 'R01' or fallback
             default_role = Roles.objects.filter(role_id='R01').first() or request.user.role
             tenant_user = Users.objects.create(
                 user_id=str(uuid.uuid4())[:5].upper(),
@@ -579,7 +641,17 @@ class TenantListCreateView(APIView):
                 is_active=True
             )
 
-        # 5. Create Tenant Record
+        # 5. Create or Resolve Resident Record for Tenant (Needed for Resident Directory & FKs)
+        tenant_resident = Resident.objects.filter(user=tenant_user, flat=flat).first()
+        if not tenant_resident:
+            tenant_resident = Resident.objects.create(
+                resident_id=str(uuid.uuid4())[:6].upper(),
+                user=tenant_user,
+                flat=flat,
+                move_in_date=data['move_in_date']
+            )
+
+        # 6. Create Tenant Record
         new_tenant = Tenant.objects.create(
             tenant_id=str(uuid.uuid4())[:6].upper(),
             user=tenant_user,
@@ -590,31 +662,22 @@ class TenantListCreateView(APIView):
             move_in_date=data['move_in_date']
         )
 
+        # 7. Update Occupancy Table: Deprecate prior primary flag & register Tenant as primary
+        Occupancy.objects.filter(flat=flat, is_primary=True).update(is_primary=False)
+        Occupancy.objects.create(
+            occupancy_id=str(uuid.uuid4())[:5].upper(),
+            flat=flat,
+            resident=tenant_resident,
+            occupancy_type='Tenant',
+            is_primary=True
+        )
+
         return Response({
             'success': True,
-            'message': 'Tenant registered successfully!',
+            'message': 'Tenant registered successfully and flat occupancy updated!',
             'tenant': TenantSerializer(new_tenant).data
         }, status=status.HTTP_201_CREATED)
 
-
-class SocietyFlatsDropdownListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        flats = Flats.objects.filter(
-            block__society=request.user.society
-        ).select_related('block').order_by('block__block_name', 'flat_number')
-
-        flats_data = [
-            {
-                'flat_id': f.flat_id,
-                'flat_number': f.flat_number,
-                'block_name': f.block.block_name if f.block else '',
-                'display_label': f"{f.block.block_name} - {f.flat_number}" if f.block else f.flat_number
-            }
-            for f in flats
-        ]
-        return Response({'success': True, 'flats': flats_data}, status=status.HTTP_200_OK)
 
 class TenantMoveOutView(APIView):
     permission_classes = [IsAuthenticated]
@@ -625,7 +688,7 @@ class TenantMoveOutView(APIView):
         if role_name not in ['chairman', 'secretary', 'admin']:
             return Response({'success': False, 'error': 'Unauthorized. Chairman privilege required.'}, status=status.HTTP_403_FORBIDDEN)
 
-        tenant = Tenant.objects.filter(
+        tenant = Tenant.objects.select_for_update().filter(
             tenant_id=tenant_id,
             flat__block__society=request.user.society
         ).first()
@@ -636,7 +699,7 @@ class TenantMoveOutView(APIView):
         if tenant.status == 'inactive':
             return Response({'success': False, 'error': 'This tenant has already been marked as moved out.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Allow Chairman to optionally specify a move-out date, defaulting to today
+        # 1. Update Tenant move-out date and status
         move_out_date_str = request.data.get('move_out_date')
         if move_out_date_str:
             try:
@@ -649,8 +712,31 @@ class TenantMoveOutView(APIView):
         tenant.status = 'inactive'
         tenant.save()
 
+        # 2. Update Occupancy: Demote tenant from primary occupancy
+        Occupancy.objects.filter(
+            flat=tenant.flat,
+            resident__user=tenant.user,
+            occupancy_type='Tenant'
+        ).update(is_primary=False)
+
+        # 3. Restore Owner as primary occupant if registered
+        owner_resident = Resident.objects.filter(flat=tenant.flat, user=tenant.owner).first()
+        if owner_resident:
+            owner_occ = Occupancy.objects.filter(flat=tenant.flat, resident=owner_resident).first()
+            if owner_occ:
+                owner_occ.is_primary = True
+                owner_occ.save()
+            else:
+                Occupancy.objects.create(
+                    occupancy_id=str(uuid.uuid4())[:5].upper(),
+                    flat=tenant.flat,
+                    resident=owner_resident,
+                    occupancy_type='Owner',
+                    is_primary=True
+                )
+
         return Response({
             'success': True,
-            'message': 'Tenant marked as moved out successfully.',
+            'message': 'Tenant marked as moved out, and flat occupancy updated.',
             'tenant': TenantSerializer(tenant).data
         }, status=status.HTTP_200_OK)

@@ -31,6 +31,7 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
       appBar: AppBar(
         title: const Text('Chairman Dashboard'),
         elevation: 0,
+        automaticallyImplyLeading: false, // Prevents phantom back button
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
@@ -50,6 +51,7 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
           final profile = snapshot.data ?? {};
           final userName = profile['user_name'] ?? 'Chairman';
           final societyName = profile['society_name'] ?? 'Zenith Square';
+          final hasSecurity = profile['has_security'] ?? true;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -185,11 +187,18 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
                     Colors.brown,
                     '/chairman-lost-found',
                   ),
+                  if (hasSecurity)
+                    _ActionItem(
+                      'Security Desk',
+                      Icons.security_outlined,
+                      Colors.red.shade700,
+                      '/chairman-security',
+                    ),
                   _ActionItem(
-                    'Security Desk',
-                    Icons.security_outlined,
-                    Colors.red.shade700,
-                    '/chairman-security',
+                    'Reports',
+                    Icons.insert_chart_outlined,
+                    Colors.indigo.shade800,
+                    '/chairman-reports',
                   ),
                 ]),
               ],

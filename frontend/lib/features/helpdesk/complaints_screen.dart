@@ -38,6 +38,31 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     }
   }
 
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   void _openFileComplaintSheet() {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
@@ -69,7 +94,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'File a Complaint',
+                        'File Chairman Complaint',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -77,36 +102,57 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
+                        onPressed: () {
+                          titleController.dispose();
+                          descController.dispose();
+                          Navigator.pop(ctx);
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Title / Subject', isRequired: true),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: titleController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Title / Subject',
-                      hintText: 'e.g., Water Leakage, Elevator Issue',
+                      hintText: 'e.g., Common Area Lighting Issue',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please enter a title'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Please enter a title';
+                      if (val.length < 3) {
+                        return 'Title must be at least 3 characters';
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Detailed Description', isRequired: true),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: descController,
                     maxLines: 4,
                     decoration: const InputDecoration(
-                      labelText: 'Detailed Description',
                       hintText: 'Describe the issue clearly...',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please enter description'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Please enter description';
+                      if (val.length < 10) {
+                        return 'Description must be at least 10 characters';
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+
                   ElevatedButton(
                     onPressed: isSubmitting
                         ? null
@@ -120,12 +166,14 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                                     description: descController.text.trim(),
                                   );
                               if (mounted) {
+                                titleController.dispose();
+                                descController.dispose();
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
                                       res['message'] ??
-                                          'Complaint filed successfully!',
+                                          'Complaint registered successfully!',
                                     ),
                                     backgroundColor: Colors.green.shade700,
                                   ),
@@ -159,7 +207,11 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                           )
                         : const Text(
                             'Submit Ticket',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ],

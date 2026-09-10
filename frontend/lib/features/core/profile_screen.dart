@@ -99,7 +99,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(

@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Resident Portal'),
         elevation: 0,
+        automaticallyImplyLeading: false, // Prevents phantom back button
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),

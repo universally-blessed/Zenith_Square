@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/datasource/facilities_api_service.dart';
 
 class VehiclesScreen extends StatefulWidget {
@@ -116,15 +117,28 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                   TextFormField(
                     controller: numberController,
                     textCapitalization: TextCapitalization.characters,
+                    maxLength: 12,
+                    inputFormatters: [
+                      // Strictly allow only uppercase/lowercase letters and digits (no spaces, hyphens, or symbols)
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                    ],
                     decoration: const InputDecoration(
-                      labelText: 'Vehicle Number',
+                      labelText: 'Vehicle Number *',
                       hintText: 'e.g. GJ01AB1234',
                       prefixIcon: Icon(Icons.pin),
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please enter vehicle number'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim().toUpperCase() ?? '';
+                      if (val.isEmpty) return 'Please enter vehicle number';
+                      if (val.length < 6)
+                        return 'Invalid vehicle number (min 6 chars)';
+                      if (!RegExp(r'^[A-Z0-9]+$').hasMatch(val)) {
+                        return 'Only letters and numbers allowed (no spaces or symbols)';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
 
@@ -132,7 +146,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                   DropdownButtonFormField<String>(
                     value: selectedType,
                     decoration: const InputDecoration(
-                      labelText: 'Vehicle Type',
+                      labelText: 'Vehicle Type *',
                       prefixIcon: Icon(Icons.category_outlined),
                       border: OutlineInputBorder(),
                     ),
@@ -157,7 +171,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                   TextFormField(
                     controller: allotmentController,
                     decoration: const InputDecoration(
-                      labelText: 'Parking Slot / Sticker No',
+                      labelText: 'Parking Slot / Sticker No *',
                       hintText: 'e.g. P-102 or STK-44',
                       prefixIcon: Icon(Icons.local_parking),
                       border: OutlineInputBorder(),

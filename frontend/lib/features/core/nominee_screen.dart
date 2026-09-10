@@ -26,6 +26,31 @@ class _NomineeScreenState extends State<NomineeScreen> {
     _loadNominee();
   }
 
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   Future<void> _loadNominee() async {
     setState(() => _isLoading = true);
     try {
@@ -61,7 +86,9 @@ class _NomineeScreenState extends State<NomineeScreen> {
         'nominee_name': _nameController.text.trim(),
         'relationship': _relationController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'email': _emailController.text.trim(),
+        'email': _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
         'address': _addressController.text.trim(),
       });
       _showToast(res['message'] ?? 'Nominee details updated!');
@@ -88,6 +115,9 @@ class _NomineeScreenState extends State<NomineeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+
     return Scaffold(
       appBar: AppBar(title: const Text('Nominee Management')),
       body: SingleChildScrollView(
@@ -97,67 +127,109 @@ class _NomineeScreenState extends State<NomineeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildFieldLabel('Nominee Full Name', isRequired: true),
+              const SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
+                maxLength: 100,
                 decoration: const InputDecoration(
-                  labelText: 'Nominee Full Name',
+                  hintText: 'Enter nominee full name',
                   border: OutlineInputBorder(),
+                  counterText: '',
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Enter nominee name'
-                    : null,
+                validator: (v) {
+                  final val = v?.trim() ?? '';
+                  if (val.isEmpty) return 'Nominee name is required';
+                  if (val.length < 2) {
+                    return 'Name must be at least 2 characters';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+
+              _buildFieldLabel('Relationship', isRequired: true),
+              const SizedBox(height: 6),
               TextFormField(
                 controller: _relationController,
+                maxLength: 50,
                 decoration: const InputDecoration(
-                  labelText: 'Relationship (e.g. Spouse, Son)',
+                  hintText: 'e.g. Spouse, Son, Daughter, Father',
                   border: OutlineInputBorder(),
+                  counterText: '',
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Enter relationship'
-                    : null,
+                validator: (v) {
+                  final val = v?.trim() ?? '';
+                  if (val.isEmpty) return 'Relationship is required';
+                  if (val.length < 2) return 'Enter a valid relationship';
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+
+              _buildFieldLabel('Phone Number', isRequired: true),
+              const SizedBox(height: 6),
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
+                maxLength: 10,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(10),
                 ],
                 decoration: const InputDecoration(
-                  labelText: 'Phone Number',
+                  hintText: '10-digit mobile number',
                   border: OutlineInputBorder(),
+                  counterText: '',
                 ),
-                validator: (v) => (v == null || v.length != 10)
-                    ? 'Enter 10-digit phone'
-                    : null,
+                validator: (v) {
+                  final val = v?.trim() ?? '';
+                  if (val.isEmpty) return 'Phone number is required';
+                  if (!phoneRegex.hasMatch(val)) {
+                    return 'Enter valid 10-digit mobile (starting with 6-9)';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+
+              _buildFieldLabel('Email Address (Optional)'),
+              const SizedBox(height: 6),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
-                  labelText: 'Email Address',
+                  hintText: 'nominee@example.com',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) => (v == null || !v.contains('@'))
-                    ? 'Enter valid email'
-                    : null,
+                validator: (v) {
+                  final val = v?.trim() ?? '';
+                  if (val.isNotEmpty && !emailRegex.hasMatch(val)) {
+                    return 'Enter a valid email address';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+
+              _buildFieldLabel('Residential Address', isRequired: true),
+              const SizedBox(height: 6),
               TextFormField(
                 controller: _addressController,
-                maxLines: 2,
+                maxLines: 3,
                 decoration: const InputDecoration(
-                  labelText: 'Full Address',
+                  hintText: 'Street address, city, state, pincode...',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Enter address' : null,
+                validator: (v) {
+                  final val = v?.trim() ?? '';
+                  if (val.isEmpty) return 'Address is required';
+                  if (val.length < 5) return 'Please enter complete address';
+                  return null;
+                },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+
               ElevatedButton(
                 onPressed: _isSaving ? null : _saveNominee,
                 style: ElevatedButton.styleFrom(
@@ -169,7 +241,13 @@ class _NomineeScreenState extends State<NomineeScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Save Nominee Details'),
+                    : const Text(
+                        'Save Nominee Details',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ],
           ),

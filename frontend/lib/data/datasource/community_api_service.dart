@@ -449,4 +449,38 @@ class CommunityApiService {
       throw Exception(data['error'] ?? 'Failed to mark tenant move-out');
     }
   }
+
+  // Fetch Society Residents Directory with Filters (GET /api/community/residents-directory/)
+  static Future<Map<String, dynamic>> fetchResidentsDirectory({
+    String? blockId,
+    String? search,
+  }) async {
+    final token = await ApiService.getAccessToken();
+
+    final queryParams = <String, String>{};
+    if (blockId != null && blockId.isNotEmpty && blockId != 'all') {
+      queryParams['block_id'] = blockId;
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      queryParams['search'] = search.trim();
+    }
+
+    final uri = Uri.parse(
+      '$baseUrl/residents-directory/',
+    ).replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+
+    final res = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data; // contains 'residents' and 'blocks'
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load residents directory');
+    }
+  }
 }

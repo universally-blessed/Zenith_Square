@@ -32,7 +32,8 @@ class _AmenitiesScreenState extends State<AmenitiesScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () => Navigator.pushReplacementNamed(context, "/home"),
+          onPressed: () =>
+              Navigator.pop(context), // Replaces pushReplacementNamed
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -243,6 +244,21 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
     _loadSlots();
   }
 
+  Future<TimeOfDay?> _pickTime(BuildContext context, TimeOfDay initial) async {
+    return await showTimePicker(
+      context: context,
+      initialTime: initial,
+      initialEntryMode: TimePickerEntryMode.dial,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          // Prevent layout compression from modal view insets
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: child!,
+        );
+      },
+    );
+  }
+
   Future<void> _loadSlots() async {
     setState(() => _isLoadingSlots = true);
     try {
@@ -329,7 +345,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
           SnackBar(
             content: Text(
               res['message'] ??
-                  'Slot reserved! Please complete payment within 1 hour.',
+                  'Slot reserved! Please complete payment within 3 hours.',
             ),
             backgroundColor: Colors.green.shade700,
           ),
@@ -498,10 +514,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _startTime,
-                      );
+                      final picked = await _pickTime(context, _startTime);
                       if (picked != null) setState(() => _startTime = picked);
                     },
                   ),
@@ -522,10 +535,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _endTime,
-                      );
+                      final picked = await _pickTime(context, _endTime);
                       if (picked != null) setState(() => _endTime = picked);
                     },
                   ),
@@ -597,7 +607,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
                       ),
                     )
                   : const Text(
-                      'Reserve Slot (1 Hr Hold)',
+                      'Reserve Slot (3 Hr Hold)',
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
             ),
@@ -744,7 +754,7 @@ class _MyBookingsTabState extends State<_MyBookingsTab> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Payment deadline: ${b['payment_deadline'] != null ? b['payment_deadline'].toString().substring(11, 16) : '--'}',
+                                'Payment deadline: ${b['formatted_deadline'] ?? (b['payment_deadline'] != null ? b['payment_deadline'].toString().substring(11, 16) : '--')}',
                                 style: const TextStyle(
                                   color: Colors.orange,
                                   fontSize: 12,

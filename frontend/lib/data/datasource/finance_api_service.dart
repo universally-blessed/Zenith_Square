@@ -126,4 +126,70 @@ class FinanceApiService {
       throw Exception(data['error'] ?? 'Failed to record expense');
     }
   }
+
+  static Future<Map<String, dynamic>> fetchExecutiveReport() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/executive-report/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(
+        data['error'] ?? 'Failed to load society executive report',
+      );
+    }
+  }
+
+  // 7. Society Income (GET /api/finance/income/)
+  static Future<List<dynamic>> fetchSocietyIncome() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/income/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['incomes'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load society income');
+    }
+  }
+
+  // 8. Chairman: Record Society Income (POST /api/finance/income/)
+  static Future<Map<String, dynamic>> recordSocietyIncome({
+    required String incomeType,
+    required double amount,
+    required String receivedDate,
+    String? description,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/income/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'income_type': incomeType,
+        'amount': amount,
+        'received_date': receivedDate,
+        'description': description ?? '',
+      }),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 201 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to record income');
+    }
+  }
 }

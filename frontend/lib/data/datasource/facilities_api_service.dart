@@ -57,6 +57,7 @@ class FacilitiesApiService {
   // 7. Confirm / Approve Amenity Booking Payment (POST /api/facilities/amenities/bookings/<id>/confirm-payment/)
   static Future<Map<String, dynamic>> confirmBookingPayment(
     String bookingId, {
+    required double amount,
     String? paymentId,
   }) async {
     final token = await ApiService.getAccessToken();
@@ -66,7 +67,7 @@ class FacilitiesApiService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({'payment_id': paymentId ?? ''}),
+      body: jsonEncode({'amount': amount, 'payment_id': paymentId ?? ''}),
     );
     final data = jsonDecode(res.body);
     if (res.statusCode == 200 && data['success'] == true) {

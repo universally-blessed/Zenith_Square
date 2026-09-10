@@ -262,10 +262,14 @@ class NomineeView(APIView):
     def get(self, request):
         features = SocietyFeatures.objects.filter(society=request.user.society).first()
         if features and features.has_nominee is False:
-            return Response({'success': False, 'error': 'Nominee management is disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'success': False, 'error': 'Nominee management is disabled for your society.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         resident = Resident.objects.filter(user=request.user).first()
         if not resident:
-            return Response({'success': False, 'error': 'Resident profile missing.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'success': True, 'nominee': None}, status=status.HTTP_200_OK)
 
         nominee = Nominee.objects.filter(resident=resident).first()
         if not nominee:
@@ -277,17 +281,23 @@ class NomineeView(APIView):
     def post(self, request):
         features = SocietyFeatures.objects.filter(society=request.user.society).first()
         if features and features.has_nominee is False:
-            return Response({'success': False, 'error': 'Nominee management is disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'success': False, 'error': 'Nominee management is disabled for your society.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         resident = Resident.objects.filter(user=request.user).first()
         if not resident:
-            return Response({'success': False, 'error': 'Resident profile missing.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'success': False, 'error': 'Cannot add nominee: No resident flat is assigned to this account.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         serializer = NomineeSerializer(data=request.data)
         if not serializer.is_valid():
             first_err = next(iter(serializer.errors.values()))[0]
             return Response({'success': False, 'error': str(first_err)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Upsert Nominee (Update if already exists, else create new)
         nominee = Nominee.objects.filter(resident=resident).first()
         if nominee:
             for key, val in serializer.validated_data.items():

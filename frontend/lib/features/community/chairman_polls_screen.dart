@@ -34,6 +34,31 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
     );
   }
 
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   Future<void> _handleDeletePoll(String pollId, String title) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -102,6 +127,7 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
     ];
     DateTime selectedEndDate = DateTime.now().add(const Duration(days: 7));
     bool isSubmitting = false;
+    String? sheetError;
 
     showModalBottomSheet(
       context: context,
@@ -136,49 +162,66 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
+                        onPressed: () {
+                          titleController.dispose();
+                          descController.dispose();
+                          for (var c in optionControllers) {
+                            c.dispose();
+                          }
+                          Navigator.pop(ctx);
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Poll Question / Title', isRequired: true),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: titleController,
+                    maxLength: 150,
                     decoration: const InputDecoration(
-                      labelText: 'Poll Question / Title',
                       hintText: 'e.g. Should we install EV charging stations?',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter question'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Poll title is required';
+                      if (val.length < 5) {
+                        return 'Question must be at least 5 characters';
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Context / Details (Optional)'),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: descController,
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      labelText: 'Description / Context (Optional)',
                       hintText:
                           'Provide background details or estimated costs...',
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Poll Expiry Date', isRequired: true),
+                  const SizedBox(height: 4),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(
                       Icons.calendar_month,
                       color: Colors.orange,
                     ),
-                    title: const Text(
-                      'Poll Expiry Date',
-                      style: TextStyle(fontSize: 12),
-                    ),
                     subtitle: Text(
                       '${selectedEndDate.year}-${selectedEndDate.month.toString().padLeft(2, '0')}-${selectedEndDate.day.toString().padLeft(2, '0')}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize: 14,
                       ),
                     ),
                     trailing: TextButton(
@@ -201,11 +244,25 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                     ),
                   ),
                   const Divider(height: 16),
-                  const Text(
-                    'Poll Options (2 to 6)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildFieldLabel(
+                        'Poll Options (2 to 6)',
+                        isRequired: true,
+                      ),
+                      Text(
+                        '${optionControllers.length}/6',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
+
                   ...List.generate(optionControllers.length, (index) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
@@ -214,20 +271,36 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: optionControllers[index],
+                              maxLength: 100,
                               decoration: InputDecoration(
-                                labelText: 'Option ${index + 1}',
+                                labelText: 'Option ${index + 1} *',
                                 hintText: index == 0
                                     ? 'Yes / Approve'
                                     : 'No / Reject',
                                 border: const OutlineInputBorder(),
+                                counterText: '',
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 10,
                                 ),
                               ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Enter option text'
-                                  : null,
+                              validator: (v) {
+                                final val = v?.trim() ?? '';
+                                if (val.isEmpty) {
+                                  return 'Option text is required';
+                                }
+                                int occurrences = 0;
+                                for (var c in optionControllers) {
+                                  if (c.text.trim().toLowerCase() ==
+                                      val.toLowerCase()) {
+                                    occurrences++;
+                                  }
+                                }
+                                if (occurrences > 1) {
+                                  return 'Duplicate option text';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           if (optionControllers.length > 2) ...[
@@ -239,7 +312,8 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                               ),
                               onPressed: () {
                                 setModalState(() {
-                                  optionControllers.removeAt(index);
+                                  final c = optionControllers.removeAt(index);
+                                  c.dispose();
                                 });
                               },
                             ),
@@ -248,6 +322,7 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                       ),
                     );
                   }),
+
                   if (optionControllers.length < 6)
                     Align(
                       alignment: Alignment.centerLeft,
@@ -261,13 +336,53 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                         label: const Text('Add Option'),
                       ),
                     ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
+
+                  // Inline Error Banner
+                  if (sheetError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sheetError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  // Single Submit Button
                   ElevatedButton(
                     onPressed: isSubmitting
                         ? null
                         : () async {
                             if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
+                            setModalState(() {
+                              isSubmitting = true;
+                              sheetError = null;
+                            });
                             try {
                               final optionsList = optionControllers
                                   .map((c) => c.text.trim())
@@ -284,6 +399,11 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                                 options: optionsList,
                               );
                               if (mounted) {
+                                titleController.dispose();
+                                descController.dispose();
+                                for (var c in optionControllers) {
+                                  c.dispose();
+                                }
                                 Navigator.pop(ctx);
                                 _showToast(
                                   res['message'] ??
@@ -292,11 +412,13 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                                 _loadPolls();
                               }
                             } catch (e) {
-                              setModalState(() => isSubmitting = false);
-                              _showToast(
-                                e.toString().replaceAll('Exception: ', ''),
-                                isError: true,
-                              );
+                              setModalState(() {
+                                isSubmitting = false;
+                                sheetError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
                             }
                           },
                     style: ElevatedButton.styleFrom(
@@ -315,7 +437,10 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                           )
                         : const Text(
                             'Publish Poll',
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ],
@@ -335,8 +460,7 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+          onPressed: () => Navigator.pop(context), // Clean pop
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -593,7 +717,6 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
 
                         const SizedBox(height: 8),
 
-                        // Action / Info Footer
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [

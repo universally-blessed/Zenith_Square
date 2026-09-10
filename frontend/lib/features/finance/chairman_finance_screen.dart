@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/datasource/finance_api_service.dart';
 
 class ChairmanFinanceScreen extends StatefulWidget {
@@ -15,7 +16,7 @@ class _ChairmanFinanceScreenState extends State<ChairmanFinanceScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -31,15 +32,15 @@ class _ChairmanFinanceScreenState extends State<ChairmanFinanceScreen>
         title: const Text('Treasury & Maintenance'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          tooltip: 'Back to Dashboard',
-          onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
         ),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
           tabs: const [
             Tab(text: 'Ledger Summary'),
+            Tab(text: 'Society Incomes'),
             Tab(text: 'Society Expenses'),
             Tab(text: 'My Unit Due'),
             Tab(text: 'Payment Receipts'),
@@ -50,6 +51,7 @@ class _ChairmanFinanceScreenState extends State<ChairmanFinanceScreen>
         controller: _tabController,
         children: const [
           _FinancialSummaryTab(),
+          _ChairmanIncomesTab(),
           _ChairmanExpensesTab(),
           _ChairmanPersonalDueTab(),
           _ChairmanPaymentHistoryTab(),
@@ -79,6 +81,7 @@ class _FinancialSummaryTabState extends State<_FinancialSummaryTab> {
   }
 
   void _refresh() {
+    if (!mounted) return;
     setState(() {
       _summaryFuture = FinanceApiService.fetchFinancialSummary();
     });
@@ -241,7 +244,407 @@ class _FinancialSummaryTabState extends State<_FinancialSummaryTab> {
 }
 
 // -------------------------------------------------------------
-// TAB 2: EXPENSES (/expenses/ GET & POST)
+// TAB 2: SOCIETY INCOMES (/income/ GET & POST)
+// -------------------------------------------------------------
+class _ChairmanIncomesTab extends StatefulWidget {
+  const _ChairmanIncomesTab();
+
+  @override
+  State<_ChairmanIncomesTab> createState() => _ChairmanIncomesTabState();
+}
+
+class _ChairmanIncomesTabState extends State<_ChairmanIncomesTab> {
+  late Future<List<dynamic>> _incomesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _incomesFuture = FinanceApiService.fetchSocietyIncome();
+  }
+
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _incomesFuture = FinanceApiService.fetchSocietyIncome();
+    });
+  }
+
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
+  Future<void> _showAddIncomeModal() async {
+    final formKey = GlobalKey<FormState>();
+    final typeController = TextEditingController();
+    final amountController = TextEditingController();
+    final descController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    bool isSubmitting = false;
+    String? sheetError;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Record Society Income',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel(
+                    'Income Source / Category',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: typeController,
+                    maxLength: 50,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'e.g. Clubhouse Rent, Tower Rent, Scrap Sale',
+                      counterText: '',
+                    ),
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Please enter income source';
+                      if (val.length < 3)
+                        return 'Title must be at least 3 characters';
+                      if (!RegExp(r'[a-zA-Z]').hasMatch(val)) {
+                        return 'Title cannot contain only numbers or symbols';
+                      }
+                      if (!RegExp(r'^[a-zA-Z0-9\s\-/]+$').hasMatch(val)) {
+                        return 'Title can only contain letters, numbers, hyphens, and spaces';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Amount (₹)', isRequired: true),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,2}'),
+                      ),
+                    ],
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixText: '₹ ',
+                      hintText: '0.00',
+                    ),
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Please enter amount';
+                      if (RegExp(r'[a-zA-Z]').hasMatch(val)) {
+                        return 'Amount cannot contain letters';
+                      }
+                      final parsed = double.tryParse(val);
+                      if (parsed == null || parsed <= 0) {
+                        return 'Enter a valid amount greater than 0';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Received Date', isRequired: true),
+                  const SizedBox(height: 4),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_month_outlined),
+                    title: Text(
+                      selectedDate.toIso8601String().substring(0, 10),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setModalState(() => selectedDate = picked);
+                        }
+                      },
+                      child: const Text('Change Date'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFieldLabel('Description (Optional)'),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: descController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      hintText: 'Receipt number, source details, or remarks...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (sheetError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sheetError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
+                            setModalState(() {
+                              isSubmitting = true;
+                              sheetError = null;
+                            });
+
+                            final type = typeController.text.trim();
+                            final amount = double.parse(
+                              amountController.text.trim(),
+                            );
+                            final desc = descController.text.trim();
+                            final dateStr = selectedDate
+                                .toIso8601String()
+                                .substring(0, 10);
+
+                            try {
+                              await FinanceApiService.recordSocietyIncome(
+                                incomeType: type,
+                                amount: amount,
+                                receivedDate: dateStr,
+                                description: desc,
+                              );
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Income recorded successfully!',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                                _refresh();
+                              }
+                            } catch (e) {
+                              setModalState(() {
+                                isSubmitting = false;
+                                sheetError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Colors.teal.shade700,
+                    ),
+                    child: isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Submit Income',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    typeController.dispose();
+    amountController.dispose();
+    descController.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: () async => _refresh(),
+        child: FutureBuilder<List<dynamic>>(
+          future: _incomesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final incomes = snapshot.data ?? [];
+            if (incomes.isEmpty) {
+              return const Center(child: Text('No society incomes recorded.'));
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(12.0),
+              itemCount: incomes.length,
+              separatorBuilder: (ctx, i) => const SizedBox(height: 8),
+              itemBuilder: (ctx, i) {
+                final inc = incomes[i];
+                return Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFFE0F2F1),
+                      child: Icon(Icons.savings_outlined, color: Colors.teal),
+                    ),
+                    title: Text(
+                      inc['income_type'] ?? 'Income',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      (inc['description'] != null &&
+                              inc['description'].toString().isNotEmpty)
+                          ? inc['description']
+                          : 'No description provided',
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '+₹${inc['amount']}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                        Text(
+                          inc['received_date'] ?? '',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddIncomeModal,
+        backgroundColor: Colors.teal.shade700,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Add Income', style: TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+}
+
+// -------------------------------------------------------------
+// TAB 3: EXPENSES (/expenses/ GET & POST)
 // -------------------------------------------------------------
 class _ChairmanExpensesTab extends StatefulWidget {
   const _ChairmanExpensesTab();
@@ -260,19 +663,47 @@ class _ChairmanExpensesTabState extends State<_ChairmanExpensesTab> {
   }
 
   void _refresh() {
+    if (!mounted) return;
     setState(() {
       _expensesFuture = FinanceApiService.fetchSocietyExpenses();
     });
   }
 
-  void _showAddExpenseModal() {
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
+  Future<void> _showAddExpenseModal() async {
     final formKey = GlobalKey<FormState>();
     final typeController = TextEditingController();
     final amountController = TextEditingController();
     final descController = TextEditingController();
     DateTime selectedDate = DateTime.now();
+    bool isSubmitting = false;
+    String? sheetError;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -288,122 +719,245 @@ class _ChairmanExpensesTabState extends State<_ChairmanExpensesTab> {
           ),
           child: Form(
             key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Record Society Expense',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: typeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Expense Title / Category',
-                    border: OutlineInputBorder(),
-                    hintText: 'e.g. Lift AMC, Water Tank Cleaning',
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter title'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: amountController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Amount (₹)',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Enter amount';
-                    if (double.tryParse(v.trim()) == null)
-                      return 'Enter valid number';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.calendar_month_outlined),
-                  title: Text(
-                    'Payment Date: ${selectedDate.toIso8601String().substring(0, 10)}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (picked != null) {
-                        setModalState(() => selectedDate = picked);
-                      }
-                    },
-                    child: const Text('Change'),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TextFormField(
-                  controller: descController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (Optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (!formKey.currentState!.validate()) return;
-                    Navigator.pop(ctx);
-                    try {
-                      await FinanceApiService.recordSocietyExpense(
-                        expenseType: typeController.text.trim(),
-                        amount: double.parse(amountController.text.trim()),
-                        paymentDate: selectedDate.toIso8601String().substring(
-                          0,
-                          10,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Record Society Expense',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
-                        description: descController.text.trim(),
-                      );
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Expense recorded successfully!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        _refresh();
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              e.toString().replaceAll('Exception: ', ''),
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
-                  child: const Text('Submit Expense'),
-                ),
-              ],
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel(
+                    'Expense Title / Category',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: typeController,
+                    maxLength: 50,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText:
+                          'e.g. Lift AMC, Water Tank Cleaning, Security Salary',
+                      counterText: '',
+                    ),
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) {
+                        return 'Please enter an expense category';
+                      }
+                      if (val.length < 3) {
+                        return 'Title must be at least 3 characters';
+                      }
+                      if (!RegExp(r'[a-zA-Z]').hasMatch(val)) {
+                        return 'Title cannot contain only numbers or symbols; letters are required';
+                      }
+                      if (!RegExp(r'^[a-zA-Z0-9\s\-/]+$').hasMatch(val)) {
+                        return 'Title can only contain letters, numbers, hyphens, and spaces';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Amount (₹)', isRequired: true),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,2}'),
+                      ),
+                    ],
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixText: '₹ ',
+                      hintText: '0.00',
+                    ),
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Please enter amount';
+                      if (RegExp(r'[a-zA-Z]').hasMatch(val)) {
+                        return 'Amount cannot contain letters';
+                      }
+                      final parsed = double.tryParse(val);
+                      if (parsed == null || parsed <= 0) {
+                        return 'Enter an amount greater than 0';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Payment Date', isRequired: true),
+                  const SizedBox(height: 4),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_month_outlined),
+                    title: Text(
+                      selectedDate.toIso8601String().substring(0, 10),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setModalState(() => selectedDate = picked);
+                        }
+                      },
+                      child: const Text('Change Date'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFieldLabel('Description (Optional)'),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: descController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      hintText: 'Vendor details, invoice number, or remarks...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (sheetError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sheetError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
+                            setModalState(() {
+                              isSubmitting = true;
+                              sheetError = null;
+                            });
+
+                            final type = typeController.text.trim();
+                            final amount = double.parse(
+                              amountController.text.trim(),
+                            );
+                            final desc = descController.text.trim();
+                            final dateStr = selectedDate
+                                .toIso8601String()
+                                .substring(0, 10);
+
+                            try {
+                              await FinanceApiService.recordSocietyExpense(
+                                expenseType: type,
+                                amount: amount,
+                                paymentDate: dateStr,
+                                description: desc,
+                              );
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Expense recorded successfully!',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                                _refresh();
+                              }
+                            } catch (e) {
+                              setModalState(() {
+                                isSubmitting = false;
+                                sheetError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Submit Expense',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+
+    typeController.dispose();
+    amountController.dispose();
+    descController.dispose();
   }
 
   @override
@@ -491,7 +1045,7 @@ class _ChairmanExpensesTabState extends State<_ChairmanExpensesTab> {
 }
 
 // -------------------------------------------------------------
-// TAB 3: DUE BILL & SETTLEMENT (/bill/latest/ & /bill/pay/)
+// TAB 4: DUE BILL & SETTLEMENT (/bill/latest/ & /bill/pay/)
 // -------------------------------------------------------------
 class _ChairmanPersonalDueTab extends StatefulWidget {
   const _ChairmanPersonalDueTab();
@@ -512,6 +1066,7 @@ class _ChairmanPersonalDueTabState extends State<_ChairmanPersonalDueTab> {
   }
 
   void _refresh() {
+    if (!mounted) return;
     setState(() {
       _billFuture = FinanceApiService.fetchLatestBill();
     });
@@ -702,7 +1257,7 @@ class _ChairmanPersonalDueTabState extends State<_ChairmanPersonalDueTab> {
 }
 
 // -------------------------------------------------------------
-// TAB 4: PAYMENT HISTORY RECEIPTS (/payment/history/)
+// TAB 5: PAYMENT HISTORY RECEIPTS (/payment/history/)
 // -------------------------------------------------------------
 class _ChairmanPaymentHistoryTab extends StatefulWidget {
   const _ChairmanPaymentHistoryTab();
@@ -723,6 +1278,7 @@ class _ChairmanPaymentHistoryTabState
   }
 
   void _refresh() {
+    if (!mounted) return;
     setState(() {
       _historyFuture = FinanceApiService.fetchPaymentHistory();
     });

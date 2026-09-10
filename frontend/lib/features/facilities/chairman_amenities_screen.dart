@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/datasource/facilities_api_service.dart';
 
 class ChairmanAmenitiesScreen extends StatefulWidget {
@@ -33,8 +34,7 @@ class _ChairmanAmenitiesScreenState extends State<ChairmanAmenitiesScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+          onPressed: () => Navigator.pop(context), // Clean pop
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -91,74 +91,181 @@ class _ChairmanBookingApprovalsTabState
   }
 
   Future<void> _handleConfirmPayment(String bookingId) async {
+    final formKey = GlobalKey<FormState>();
+    final amountController = TextEditingController();
     final refController = TextEditingController();
-    final confirm = await showDialog<bool>(
+    String? dialogError;
+    bool isSubmitting = false;
+
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Booking Payment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Confirm that the resident has paid the booking deposit/charge:',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: refController,
-              decoration: const InputDecoration(
-                labelText: 'Payment Ref / Receipt No. (Optional)',
-                border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          title: const Text('Confirm & Log Amenity Income'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Enter the payment details received from the resident. This will automatically record an entry into Society Income.',
+                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Amount Input
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Amount Paid (₹)',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,2}'),
+                      ),
+                    ],
+                    decoration: const InputDecoration(
+                      prefixText: '₹ ',
+                      hintText: 'e.g. 1500.00',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Please enter paid amount';
+                      final parsed = double.tryParse(val);
+                      if (parsed == null || parsed <= 0) {
+                        return 'Amount must be greater than zero';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Receipt/Ref No Input
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Payment Ref / Receipt No. (Optional)',
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: refController,
+                    maxLength: 30,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. UPI-12345, REC-091',
+                      border: OutlineInputBorder(),
+                      counterText: '',
+                      isDense: true,
+                    ),
+                  ),
+
+                  // Inline Error
+                  if (dialogError != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Text(
+                        dialogError!,
+                        style: TextStyle(
+                          color: Colors.red.shade900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      final amount = double.parse(amountController.text.trim());
+                      final paymentId = refController.text.trim();
+
+                      setDialogState(() {
+                        isSubmitting = true;
+                        dialogError = null;
+                      });
+
+                      try {
+                        final res =
+                            await FacilitiesApiService.confirmBookingPayment(
+                              bookingId,
+                              amount: amount,
+                              paymentId: paymentId.isNotEmpty
+                                  ? paymentId
+                                  : null,
+                            );
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                res['message'] ??
+                                    'Booking confirmed & logged in Income!',
+                              ),
+                              backgroundColor: Colors.green.shade700,
+                            ),
+                          );
+                          _loadBookings();
+                        }
+                      } catch (e) {
+                        setDialogState(() {
+                          isSubmitting = false;
+                          dialogError = e.toString().replaceAll(
+                            'Exception: ',
+                            '',
+                          );
+                        });
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Confirm & Log Income'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text(
-              'Confirm & Lock Slot',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
       ),
     );
 
-    if (confirm != true) return;
-
-    try {
-      final res = await FacilitiesApiService.confirmBookingPayment(
-        bookingId,
-        paymentId: refController.text.trim().isNotEmpty
-            ? refController.text.trim()
-            : null,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res['message'] ?? 'Booking confirmed successfully!'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-        _loadBookings();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.red.shade700,
-          ),
-        );
-      }
-    }
+    amountController.dispose();
+    refController.dispose();
   }
 
   Future<void> _handleCancelBooking(String bookingId) async {
@@ -587,15 +694,42 @@ class _ChairmanAmenitiesCatalogTabState
     );
   }
 
-  void _openCreateAmenityModal() {
+  // Label Helper with Required Asterisk
+  static Widget buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
+  Future<void> _openCreateAmenityModal() async {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final locationController = TextEditingController();
     final capacityController = TextEditingController();
     String statusValue = 'available';
     bool isSubmitting = false;
+    String? modalError;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -632,52 +766,85 @@ class _ChairmanAmenitiesCatalogTabState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Amenity Name',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: nameController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Amenity Name',
                       hintText: 'e.g. Swimming Pool, Community Hall',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter amenity name'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Enter amenity name';
+                      if (val.length < 2)
+                        return 'Must be at least 2 characters';
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Location / Floor',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: locationController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Location / Floor',
                       hintText: 'e.g. Ground Floor, Clubhouse Building',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter location'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Enter location';
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Maximum Capacity (Persons)',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: capacityController,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
-                      labelText: 'Maximum Capacity (Persons)',
+                      hintText: 'e.g. 50',
                       border: OutlineInputBorder(),
                     ),
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty)
-                        return 'Enter capacity';
-                      if (int.tryParse(v.trim()) == null) {
-                        return 'Enter valid number';
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Enter capacity';
+                      final parsed = int.tryParse(val);
+                      if (parsed == null || parsed <= 0) {
+                        return 'Capacity must be at least 1 person';
                       }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Operational Status',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     value: statusValue,
                     decoration: const InputDecoration(
-                      labelText: 'Operational Status',
                       border: OutlineInputBorder(),
                     ),
                     items: const [
@@ -699,12 +866,51 @@ class _ChairmanAmenitiesCatalogTabState
                     },
                   ),
                   const SizedBox(height: 16),
+
+                  // INLINE ERROR BANNER
+                  if (modalError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              modalError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
                   ElevatedButton(
                     onPressed: isSubmitting
                         ? null
                         : () async {
                             if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
+                            setModalState(() {
+                              isSubmitting = true;
+                              modalError = null;
+                            });
                             try {
                               final res =
                                   await FacilitiesApiService.createAmenity(
@@ -728,15 +934,13 @@ class _ChairmanAmenitiesCatalogTabState
                                 _loadAmenities();
                               }
                             } catch (e) {
-                              setModalState(() => isSubmitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll('Exception: ', ''),
-                                  ),
-                                  backgroundColor: Colors.red.shade700,
-                                ),
-                              );
+                              setModalState(() {
+                                isSubmitting = false;
+                                modalError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
                             }
                           },
                     style: ElevatedButton.styleFrom(
@@ -754,7 +958,11 @@ class _ChairmanAmenitiesCatalogTabState
                           )
                         : const Text(
                             'Save Amenity',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ],
@@ -764,6 +972,9 @@ class _ChairmanAmenitiesCatalogTabState
         ),
       ),
     );
+    nameController.dispose();
+    locationController.dispose();
+    capacityController.dispose();
   }
 
   @override
@@ -1008,15 +1219,16 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
     }
   }
 
-  void _openCreateAssetModal() {
+  Future<void> _openCreateAssetModal() async {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final typeController = TextEditingController();
     final locationController = TextEditingController();
     DateTime purchaseDate = DateTime.now();
     bool isSubmitting = false;
+    String? modalError;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1053,48 +1265,83 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Asset Name',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: nameController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Asset Name',
-                      hintText: 'e.g. Diesel Generator, CCTV Camera System',
+                      hintText: 'e.g. Diesel Generator, CCTV System',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter asset name'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Enter asset name';
+                      if (val.length < 2)
+                        return 'Must be at least 2 characters';
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Category / Type',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: typeController,
+                    maxLength: 50,
                     decoration: const InputDecoration(
-                      labelText: 'Category / Type',
                       hintText: 'e.g. Electrical, Security, Plumbing',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty)
                         ? 'Enter asset type'
                         : null,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Asset Location',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: locationController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Asset Location',
                       hintText: 'e.g. Basement Parking, Main Gate',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty)
                         ? 'Enter location'
                         : null,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                    'Purchase Date',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 4),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.calendar_month_outlined),
-                    title: Text(
-                      'Purchase Date: ${purchaseDate.toIso8601String().substring(0, 10)}',
+                    subtitle: Text(
+                      purchaseDate.toIso8601String().substring(0, 10),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     trailing: TextButton(
                       onPressed: () async {
@@ -1112,12 +1359,51 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // INLINE ERROR BANNER
+                  if (modalError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              modalError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
                   ElevatedButton(
                     onPressed: isSubmitting
                         ? null
                         : () async {
                             if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
+                            setModalState(() {
+                              isSubmitting = true;
+                              modalError = null;
+                            });
                             try {
                               final res =
                                   await FacilitiesApiService.createAsset(
@@ -1141,15 +1427,13 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                                 _loadAssets();
                               }
                             } catch (e) {
-                              setModalState(() => isSubmitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll('Exception: ', ''),
-                                  ),
-                                  backgroundColor: Colors.red.shade700,
-                                ),
-                              );
+                              setModalState(() {
+                                isSubmitting = false;
+                                modalError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
+                              });
                             }
                           },
                     style: ElevatedButton.styleFrom(
@@ -1167,7 +1451,11 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                           )
                         : const Text(
                             'Save Asset',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ],
@@ -1177,6 +1465,9 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
         ),
       ),
     );
+    nameController.dispose();
+    typeController.dispose();
+    locationController.dispose();
   }
 
   void _showMaintenanceHistory(Map<String, dynamic> asset) {
@@ -1340,47 +1631,70 @@ class _AssetMaintenanceSheetState extends State<_AssetMaintenanceSheet> {
     });
   }
 
-  void _openAddLogModal() {
+  Future<void> _openAddLogModal() async {
     final formKey = GlobalKey<FormState>();
     final descController = TextEditingController();
     final costController = TextEditingController();
     DateTime date = DateTime.now();
 
-    showDialog(
+    await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Record Maintenance for ${widget.asset['asset_name']}'),
+          title: Text('Record Maintenance: ${widget.asset['asset_name']}'),
           content: Form(
             key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                  'Service / Work Details',
+                  isRequired: true,
+                ),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: descController,
                   maxLines: 2,
                   decoration: const InputDecoration(
-                    labelText: 'Service / Work Details',
+                    hintText: 'e.g. Engine oil replacement, filter cleaning',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter description'
-                      : null,
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Enter description';
+                    if (val.length < 5) return 'Must be at least 5 characters';
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
+
+                _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
+                  'Maintenance Cost (₹)',
+                  isRequired: true,
+                ),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: costController,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d+\.?\d{0,2}'),
+                    ),
+                  ],
                   decoration: const InputDecoration(
-                    labelText: 'Maintenance Cost (₹)',
+                    hintText: '0.00',
+                    prefixText: '₹ ',
                     border: OutlineInputBorder(),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Enter cost';
-                    if (double.tryParse(v.trim()) == null) {
-                      return 'Enter valid amount';
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Enter cost';
+                    final parsed = double.tryParse(val);
+                    if (parsed == null || parsed <= 0) {
+                      return 'Cost must be greater than zero';
                     }
                     return null;
                   },
@@ -1396,16 +1710,29 @@ class _AssetMaintenanceSheetState extends State<_AssetMaintenanceSheet> {
             ElevatedButton(
               onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
+                final desc = descController.text.trim();
+                final cost = double.parse(costController.text.trim());
                 Navigator.pop(ctx);
                 try {
                   await FacilitiesApiService.recordAssetMaintenance(
                     assetId: widget.asset['asset_id'],
-                    description: descController.text.trim(),
+                    description: desc,
                     maintenanceDate: date.toIso8601String().substring(0, 10),
-                    cost: double.parse(costController.text.trim()),
+                    cost: cost,
                   );
                   _loadLogs();
-                } catch (_) {}
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          e.toString().replaceAll('Exception: ', ''),
+                        ),
+                        backgroundColor: Colors.red.shade700,
+                      ),
+                    );
+                  }
+                }
               },
               child: const Text('Save Log'),
             ),
@@ -1413,6 +1740,8 @@ class _AssetMaintenanceSheetState extends State<_AssetMaintenanceSheet> {
         ),
       ),
     );
+    descController.dispose();
+    costController.dispose();
   }
 
   @override
@@ -1629,12 +1958,28 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
     _loadSlots();
   }
 
+  Future<TimeOfDay?> _pickTime(BuildContext context, TimeOfDay initial) async {
+    return await showTimePicker(
+      context: context,
+      initialTime: initial,
+      initialEntryMode: TimePickerEntryMode.dial,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          // Prevent layout compression from modal view insets
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: child!,
+        );
+      },
+    );
+  }
+
   Future<void> _loadSlots() async {
     setState(() => _isLoadingSlots = true);
     try {
       final list = await FacilitiesApiService.fetchAmenityBookings(
         widget.amenity['amenity_id'],
       );
+      if (!mounted) return;
       setState(() => _existingBookings = list);
     } catch (_) {}
     if (mounted) setState(() => _isLoadingSlots = false);
@@ -1714,7 +2059,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
           SnackBar(
             content: Text(
               res['message'] ??
-                  'Slot reserved! Please complete payment within 1 hour.',
+                  'Slot reserved! Please complete payment within 3 hours.',
             ),
             backgroundColor: Colors.green.shade700,
           ),
@@ -1880,10 +2225,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _startTime,
-                      );
+                      final picked = await _pickTime(context, _startTime);
                       if (picked != null) setState(() => _startTime = picked);
                     },
                   ),
@@ -1904,10 +2246,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _endTime,
-                      );
+                      final picked = await _pickTime(context, _endTime);
                       if (picked != null) setState(() => _endTime = picked);
                     },
                   ),
@@ -1976,7 +2315,7 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
                       ),
                     )
                   : const Text(
-                      'Reserve Slot (1 Hr Hold)',
+                      'Reserve Slot (3 Hr Hold)',
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
             ),

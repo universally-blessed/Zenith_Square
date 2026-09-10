@@ -1,12 +1,7 @@
 import datetime
 from decimal import Decimal
 from rest_framework import serializers
-from .models import MaintenanceBill, Payment, PaymentReceipt, SocietyExpenses
-
-import datetime
-from decimal import Decimal
-from rest_framework import serializers
-from .models import MaintenanceBill, Payment, PaymentReceipt, SocietyExpenses
+from .models import MaintenanceBill, PaymentReceipt, SocietyExpenses,SocietyIncome
 
 class MaintenanceBillSerializer(serializers.ModelSerializer):
     flat_number = serializers.CharField(source='flat.flat_number', read_only=True)
@@ -80,7 +75,114 @@ class PaymentReceiptSerializer(serializers.ModelSerializer):
 
 
 class SocietyExpensesSerializer(serializers.ModelSerializer):
+    expense_type = serializers.CharField(
+        max_length=50,
+        min_length=3,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Expense category or title is required.',
+            'blank': 'Expense category cannot be blank.',
+            'min_length': 'Expense title must be at least 3 characters.',
+        }
+    )
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        error_messages={
+            'required': 'Expense amount is required.',
+            'min_value': 'Amount must be greater than zero.',
+        }
+    )
+    payment_date = serializers.DateField(
+        error_messages={'required': 'Payment date is required.', 'invalid': 'Enter valid date (YYYY-MM-DD).'}
+    )
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True
+    )
+
     class Meta:
         model = SocietyExpenses
         fields = ['expense_id', 'expense_type', 'amount', 'payment_date', 'description']
         read_only_fields = ['expense_id']
+
+    def validate_payment_date(self, value):
+        if value > datetime.date.today():
+            raise serializers.ValidationError('Payment date cannot be in the future.')
+        return value
+
+
+class GenerateMaintenanceBillsSerializer(serializers.Serializer):
+    bill_month = serializers.CharField(
+        max_length=20,
+        min_length=4,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Billing month name is required (e.g. September 2026).',
+            'blank': 'Billing month cannot be blank.'
+        }
+    )
+    due_date = serializers.DateField(
+        required=False,
+        error_messages={'invalid': 'Enter a valid date (YYYY-MM-DD).'}
+    )
+
+    def validate_due_date(self, value):
+        if value and value < datetime.date.today():
+            raise serializers.ValidationError('Due date cannot be set in the past.')
+        return value
+
+
+class SettlePaymentRequestSerializer(serializers.Serializer):
+    bill_id = serializers.CharField(
+        max_length=6,
+        error_messages={'required': 'bill_id parameter is required.'}
+    )
+    payment_method = serializers.ChoiceField(
+        choices=['ONLINE', 'CASH', 'CHEQUE', 'UPI', 'BANK_TRANSFER'],
+        default='ONLINE',
+        error_messages={'invalid_choice': 'Invalid payment method selected.'}
+    )
+
+class SocietyIncomeSerializer(serializers.ModelSerializer):
+    income_type = serializers.CharField(
+        max_length=50,
+        min_length=3,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Income source or title is required.',
+            'blank': 'Income category cannot be blank.',
+            'min_length': 'Income title must be at least 3 characters.',
+        }
+    )
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        error_messages={
+            'required': 'Income amount is required.',
+            'min_value': 'Amount must be greater than zero.',
+        }
+    )
+    received_date = serializers.DateField(
+        error_messages={'required': 'Received date is required.', 'invalid': 'Enter valid date (YYYY-MM-DD).'}
+    )
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=True
+    )
+
+    class Meta:
+        model = SocietyIncome
+        fields = ['income_id', 'income_type', 'amount', 'received_date', 'description']
+        read_only_fields = ['income_id']
+
+    def validate_received_date(self, value):
+        if value > datetime.date.today():
+            raise serializers.ValidationError('Received date cannot be in the future.')
+        return value

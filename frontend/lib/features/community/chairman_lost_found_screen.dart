@@ -40,6 +40,31 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
     }
   }
 
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   void _showUpdateStatusDialog(String itemId, String currentStatus) {
     String selectedStatus = currentStatus;
 
@@ -137,6 +162,7 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
     final locationController = TextEditingController();
     String itemType = 'Found';
     bool isSubmitting = false;
+    String? sheetError;
 
     showModalBottomSheet(
       context: context,
@@ -171,16 +197,27 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
+                        onPressed: () {
+                          nameController.dispose();
+                          descController.dispose();
+                          locationController.dispose();
+                          Navigator.pop(ctx);
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Report Type', isRequired: true),
+                  const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     value: itemType,
                     decoration: const InputDecoration(
-                      labelText: 'Report Type',
                       border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(
@@ -193,51 +230,113 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                       if (val != null) setModalState(() => itemType = val);
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Item Name / Title', isRequired: true),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: nameController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Item Name / Title',
                       hintText: 'e.g. Car Keys, Leather Wallet, Glasses',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter item name'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Item title is required';
+                      if (val.length < 2) {
+                        return 'Item title must be at least 2 characters';
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel('Description', isRequired: true),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: descController,
                     maxLines: 3,
                     decoration: const InputDecoration(
-                      labelText: 'Description',
                       hintText:
                           'Color, brand, identifying marks, where kept...',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter item description'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Item description is required';
+                      if (val.length < 5) {
+                        return 'Please provide more details (at least 5 characters)';
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  _buildFieldLabel(
+                    'Location Found / Lost At',
+                    isRequired: true,
+                  ),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: locationController,
+                    maxLength: 100,
                     decoration: const InputDecoration(
-                      labelText: 'Location Found / Lost At',
-                      hintText: 'e.g. Clubhouse Lobby, Garden Bench',
+                      hintText: 'e.g. Clubhouse Lobby, Block B Garden Bench',
                       border: OutlineInputBorder(),
+                      counterText: '',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter location'
-                        : null,
+                    validator: (v) {
+                      final val = v?.trim() ?? '';
+                      if (val.isEmpty) return 'Location is required';
+                      if (val.length < 2) return 'Enter a valid location';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
+
+                  // INLINE ERROR BANNER
+                  if (sheetError != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 18, color: Colors.red.shade800),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sheetError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
                   ElevatedButton(
                     onPressed: isSubmitting
                         ? null
                         : () async {
                             if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
+                            setModalState(() {
+                              isSubmitting = true;
+                              sheetError = null;
+                            });
                             try {
                               final res =
                                   await CommunityApiService.reportLostFoundItem(
@@ -248,6 +347,9 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                                         .trim(),
                                   );
                               if (mounted) {
+                                nameController.dispose();
+                                descController.dispose();
+                                locationController.dispose();
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -261,15 +363,12 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                                 _loadItems();
                               }
                             } catch (e) {
-                              setModalState(() => isSubmitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll('Exception: ', ''),
-                                  ),
-                                  backgroundColor: Colors.red.shade700,
-                                ),
-                              );
+                              setModalState(() {
+                                isSubmitting = false;
+                                sheetError = e
+                                    .toString()
+                                    .replaceAll('Exception: ', '');
+                              });
                             }
                           },
                     style: ElevatedButton.styleFrom(
@@ -288,7 +387,10 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                           )
                         : const Text(
                             'Submit Item Report',
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ],
@@ -308,8 +410,7 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+          onPressed: () => Navigator.pop(context), // Standard clean pop
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -320,7 +421,6 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
       ),
       body: Column(
         children: [
-          // Filter Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(
@@ -340,8 +440,6 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
             ),
           ),
           const Divider(height: 1),
-
-          // Items Feed
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: _itemsFuture,
@@ -417,7 +515,8 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                     separatorBuilder: (ctx, i) => const SizedBox(height: 10),
                     itemBuilder: (ctx, i) {
                       final item = filtered[i];
-                      final status = (item['item_status'] ?? 'Lost').toString();
+                      final status =
+                          (item['item_status'] ?? 'Lost').toString();
                       final statusColor = _getStatusColor(status);
                       final reportedBy =
                           item['reported_by_name'] ?? 'Management';

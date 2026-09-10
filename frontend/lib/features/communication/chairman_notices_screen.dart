@@ -21,6 +21,7 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
   }
 
   void _loadNotices() {
+    if (!mounted) return;
     setState(() {
       _noticesFuture = CommunicationApiService.fetchNotices();
     });
@@ -44,7 +45,7 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
         societyId = match.id;
       }
 
-      if (societyId.isNotEmpty) {
+      if (societyId.isNotEmpty && mounted) {
         final blocks = await ApiService.fetchBlocks(societyId);
         if (mounted) setState(() => _blocks = blocks);
       }
@@ -63,6 +64,31 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
       default:
         return Colors.teal;
     }
+  }
+
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
   }
 
   Future<void> _handleDeleteNotice(String noticeId, String title) async {
@@ -117,6 +143,7 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
     String selectedPriority = 'normal';
     String? selectedBlockId;
     bool isSubmitting = false;
+    String? sheetError;
 
     showModalBottomSheet(
       context: context,
@@ -152,102 +179,199 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(ctx),
+                          onPressed: () {
+                            titleController.dispose();
+                            descController.dispose();
+                            Navigator.pop(ctx);
+                          },
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+
+                    // Title
+                    _buildFieldLabel('Notice Title', isRequired: true),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: titleController,
+                      maxLength: 150,
                       decoration: const InputDecoration(
-                        labelText: 'Notice Title',
                         hintText: 'e.g., Annual Society Meeting, Water Outage',
                         border: OutlineInputBorder(),
+                        counterText: '',
                       ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Please enter a title'
-                          : null,
+                      validator: (v) {
+                        final val = v?.trim() ?? '';
+                        if (val.isEmpty) return 'Notice title is required';
+                        if (val.length < 3) {
+                          return 'Title must be at least 3 characters';
+                        }
+                        if (val.length > 150) {
+                          return 'Title cannot exceed 150 characters';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+
+                    // Description
+                    _buildFieldLabel('Announcement Details', isRequired: true),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: descController,
                       maxLines: 4,
                       decoration: const InputDecoration(
-                        labelText: 'Notice Details',
                         hintText: 'Write the complete announcement...',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Please enter notice details'
-                          : null,
+                      validator: (v) {
+                        final val = v?.trim() ?? '';
+                        if (val.isEmpty) {
+                          return 'Notice details cannot be empty';
+                        }
+                        if (val.length < 10) {
+                          return 'Please provide more details (minimum 10 characters)';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+
+                    // Priority & Scope Pickers
                     Row(
                       children: [
                         // Priority Selector
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: selectedPriority,
-                            decoration: const InputDecoration(
-                              labelText: 'Priority',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'normal',
-                                child: Text('Normal'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'high',
-                                child: Text('High'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'urgent',
-                                child: Text('Urgent'),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Priority', isRequired: true),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String>(
+                                value: selectedPriority,
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'normal',
+                                    child: Text('Normal'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'high',
+                                    child: Text('High'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'urgent',
+                                    child: Text('Urgent'),
+                                  ),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setModalState(() => selectedPriority = val);
+                                  }
+                                },
                               ),
                             ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setModalState(() => selectedPriority = val);
-                              }
-                            },
                           ),
                         ),
                         const SizedBox(width: 12),
+
                         // Block Scope Selector
                         Expanded(
-                          child: DropdownButtonFormField<String?>(
-                            value: selectedBlockId,
-                            decoration: const InputDecoration(
-                              labelText: 'Target Scope',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text('All Blocks'),
-                              ),
-                              ..._blocks.map(
-                                (b) => DropdownMenuItem(
-                                  value: b.id,
-                                  child: Text(b.name),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Target Scope'),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String?>(
+                                value: selectedBlockId,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 12,
+                                  ),
                                 ),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: null,
+                                    child: Text(
+                                      'All Blocks',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  ..._blocks.map(
+                                    (b) => DropdownMenuItem(
+                                      value: b.id,
+                                      child: Text(
+                                        b.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (val) {
+                                  setModalState(() => selectedBlockId = val);
+                                },
                               ),
                             ],
-                            onChanged: (val) {
-                              setModalState(() => selectedBlockId = val);
-                            },
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
+
+                    // INLINE MODAL ERROR BANNER
+                    if (sheetError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 18,
+                              color: Colors.red.shade800,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                sheetError!,
+                                style: TextStyle(
+                                  color: Colors.red.shade900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Submit Button
                     ElevatedButton(
                       onPressed: isSubmitting
                           ? null
                           : () async {
                               if (!formKey.currentState!.validate()) return;
-                              setModalState(() => isSubmitting = true);
+                              setModalState(() {
+                                isSubmitting = true;
+                                sheetError = null;
+                              });
                               try {
                                 final res =
                                     await CommunicationApiService.publishNotice(
@@ -257,6 +381,8 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
                                       blockId: selectedBlockId,
                                     );
                                 if (mounted) {
+                                  titleController.dispose();
+                                  descController.dispose();
                                   Navigator.pop(ctx);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
@@ -270,18 +396,13 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
                                   _loadNotices();
                                 }
                               } catch (e) {
-                                setModalState(() => isSubmitting = false);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      e.toString().replaceAll(
-                                        'Exception: ',
-                                        '',
-                                      ),
-                                    ),
-                                    backgroundColor: Colors.red.shade700,
-                                  ),
-                                );
+                                setModalState(() {
+                                  isSubmitting = false;
+                                  sheetError = e.toString().replaceAll(
+                                    'Exception: ',
+                                    '',
+                                  );
+                                });
                               }
                             },
                       style: ElevatedButton.styleFrom(
@@ -302,6 +423,7 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                     ),
@@ -323,8 +445,9 @@ class _ChairmanNoticesScreenState extends State<ChairmanNoticesScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+          onPressed: () => Navigator.pop(
+            context,
+          ), // Replaced pushReplacementNamed with clean pop
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

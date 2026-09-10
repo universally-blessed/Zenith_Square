@@ -15,7 +15,8 @@ from .views import (
     SocietyMembersDropdownListView,
     TenantListCreateView,
     SocietyFlatsDropdownListView,
-    TenantMoveOutView
+    TenantMoveOutView,
+    SocietyResidentDirectoryView
 )
 
 urlpatterns = [
@@ -28,6 +29,7 @@ urlpatterns = [
     path('committee/change-request/', CommitteeChangeRequestView.as_view(), name='committee-change-request'),
     path('committee/change-request/<str:request_id>/action/', HandleCommitteeChangeActionView.as_view(), name='committee-change-action'),
     path('committee/members-dropdown/', SocietyMembersDropdownListView.as_view(), name='society-members-dropdown'),
+    path('residents-directory/', SocietyResidentDirectoryView.as_view(), name='residents-directory'),
 
     # Polls & Voting
     path('polls/active/', ActivePollsListView.as_view(), name='active-polls'),

@@ -77,7 +77,14 @@ class _TenantListScreenState extends State<TenantListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Society Tenants')),
+      appBar: AppBar(
+        title: const Text('Society Tenants'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.person_add),
         label: const Text('Add Tenant'),

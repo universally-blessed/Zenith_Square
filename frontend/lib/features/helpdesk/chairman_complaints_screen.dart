@@ -33,8 +33,9 @@ class _ChairmanComplaintsScreenState extends State<ChairmanComplaintsScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back to Dashboard',
-          onPressed: () =>
-              Navigator.pushReplacementNamed(context, '/chairman-home'),
+          onPressed: () => Navigator.pop(
+            context,
+          ), // Replaced pushReplacementNamed with clean pop
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -73,6 +74,7 @@ class _SocietyComplaintsTabState extends State<_SocietyComplaintsTab> {
   }
 
   void _loadComplaints() {
+    if (!mounted) return;
     setState(() {
       _complaintsFuture = HelpdeskApiService.fetchComplaints();
     });
@@ -90,6 +92,31 @@ class _SocietyComplaintsTabState extends State<_SocietyComplaintsTab> {
       default:
         return Colors.amber.shade800;
     }
+  }
+
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
   }
 
   void _showUpdateStatusDialog(String complaintId, String currentStatus) {
@@ -185,13 +212,14 @@ class _SocietyComplaintsTabState extends State<_SocietyComplaintsTab> {
     );
   }
 
-  void _openFileComplaintSheet() {
+  Future<void> _openFileComplaintSheet() async {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
     final descController = TextEditingController();
     bool isSubmitting = false;
+    String? sheetError;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -208,114 +236,174 @@ class _SocietyComplaintsTabState extends State<_SocietyComplaintsTab> {
             ),
             child: Form(
               key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'File Chairman Complaint',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'File Chairman Complaint',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    _buildFieldLabel('Title / Subject', isRequired: true),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: titleController,
+                      maxLength: 100,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g., Common Area Lighting Issue',
+                        border: OutlineInputBorder(),
+                        counterText: '',
+                      ),
+                      validator: (v) {
+                        final val = v?.trim() ?? '';
+                        if (val.isEmpty) return 'Please enter a title';
+                        if (val.length < 3)
+                          return 'Title must be at least 3 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    _buildFieldLabel('Detailed Description', isRequired: true),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: descController,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: 'Describe the issue clearly...',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        final val = v?.trim() ?? '';
+                        if (val.isEmpty) return 'Please enter description';
+                        if (val.length < 10)
+                          return 'Description must be at least 10 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // INLINE ERROR BANNER
+                    if (sheetError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 18,
+                              color: Colors.red.shade800,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                sheetError!,
+                                style: TextStyle(
+                                  color: Colors.red.shade900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
+                      const SizedBox(height: 14),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title / Subject',
-                      hintText: 'e.g., Common Area Lighting Issue',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please enter a title'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: descController,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Detailed Description',
-                      hintText: 'Describe the issue...',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please enter description'
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () async {
-                            if (!formKey.currentState!.validate()) return;
-                            setModalState(() => isSubmitting = true);
-                            try {
-                              final res =
-                                  await HelpdeskApiService.fileComplaint(
-                                    title: titleController.text.trim(),
-                                    description: descController.text.trim(),
-                                  );
-                              if (mounted) {
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      res['message'] ??
-                                          'Complaint registered successfully!',
+
+                    ElevatedButton(
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              if (!formKey.currentState!.validate()) return;
+                              setModalState(() {
+                                isSubmitting = true;
+                                sheetError = null;
+                              });
+                              try {
+                                final res =
+                                    await HelpdeskApiService.fileComplaint(
+                                      title: titleController.text.trim(),
+                                      description: descController.text.trim(),
+                                    );
+                                if (mounted) {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        res['message'] ??
+                                            'Complaint registered successfully!',
+                                      ),
+                                      backgroundColor: Colors.green.shade700,
                                     ),
-                                    backgroundColor: Colors.green.shade700,
-                                  ),
-                                );
-                                _loadComplaints();
+                                  );
+                                  _loadComplaints();
+                                }
+                              } catch (e) {
+                                setModalState(() {
+                                  isSubmitting = false;
+                                  sheetError = e.toString().replaceAll(
+                                    'Exception: ',
+                                    '',
+                                  );
+                                });
                               }
-                            } catch (e) {
-                              setModalState(() => isSubmitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll('Exception: ', ''),
-                                  ),
-                                  backgroundColor: Colors.red.shade700,
-                                ),
-                              );
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Colors.amber.shade800,
-                    ),
-                    child: isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                            },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: Colors.amber.shade800,
+                      ),
+                      child: isSubmitting
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Submit Ticket',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          )
-                        : const Text(
-                            'Submit Ticket',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
-                          ),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
     );
+
+    titleController.dispose();
+    descController.dispose();
   }
 
   @override
@@ -329,7 +417,6 @@ class _SocietyComplaintsTabState extends State<_SocietyComplaintsTab> {
       ),
       body: Column(
         children: [
-          // Filter Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(
@@ -351,8 +438,6 @@ class _SocietyComplaintsTabState extends State<_SocietyComplaintsTab> {
             ),
           ),
           const Divider(height: 1),
-
-          // Complaints List
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: _complaintsFuture,
@@ -584,6 +669,7 @@ class _SocietyFeedbacksTabState extends State<_SocietyFeedbacksTab> {
   }
 
   void _loadFeedbacks() {
+    if (!mounted) return;
     setState(() {
       _feedbackFuture = HelpdeskApiService.fetchFeedbacks();
     });

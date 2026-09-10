@@ -36,11 +36,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         final role = response['role'];
-        if (role == 'chairman') {
-          Navigator.pushReplacementNamed(context, '/chairman-home');
-        } else {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
+        final targetRoute = (role == 'chairman') ? '/chairman-home' : '/home';
+
+        // Clear the entire stack so no back buttons can ever appear on the home screen
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          targetRoute,
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {

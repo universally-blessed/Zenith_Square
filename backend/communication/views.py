@@ -50,16 +50,21 @@ class NoticeListCreateView(APIView):
 
         data = serializer.validated_data
         block_obj = None
-        if data.get('block_id'):
-            block_obj = Blocks.objects.filter(block_id=data['block_id'], society=request.user.society).first()
+        block_id_val = data.get('block_id')
+
+        # Validate that the block actually exists in this society
+        if block_id_val and block_id_val.lower() != 'all':
+            block_obj = Blocks.objects.filter(block_id=block_id_val, society=request.user.society).first()
+            if not block_obj:
+                return Response({'success': False, 'error': 'Specified target block was not found in your society.'}, status=status.HTTP_404_NOT_FOUND)
 
         notice = Notice.objects.create(
             notice_id=str(uuid.uuid4())[:5].upper(),
             society=request.user.society,
             block=block_obj,
-            title=data['title'],
-            description=data['description'],
-            priority=data.get('priority', 'normal'),
+            title=data['title'].strip(),
+            description=data['description'].strip(),
+            priority=data.get('priority', 'normal').lower(),
             created_by=request.user,
             created_at=timezone.now(),
             is_active=True

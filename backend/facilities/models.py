@@ -27,7 +27,7 @@ class AmenityBooking(models.Model):
     end_time = models.TimeField()
     status = models.CharField(max_length=20, default='pending')
     payment_deadline = models.DateTimeField(blank=True, null=True)
-    payment_id = models.CharField(max_length=5, blank=True, null=True)
+    payment_id = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         managed = False

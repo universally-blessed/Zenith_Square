@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from core_api.models import Resident
-from finance.models import SocietyExpenses 
+from finance.models import SocietyExpenses,SocietyIncome
 from .models import Amenity, AmenityBooking, Asset, AssetMaintenance,Vehicle
 from .serializers import (
     AmenitySerializer,
@@ -57,11 +57,19 @@ class AmenityListCreateView(APIView):
 
 
 # 2. Book Amenity (Blocks for 1 Hour Under 'pending_payment')
+def auto_expire_stale_bookings():
+    # Both are timezone-aware; clean and warning-free
+    AmenityBooking.objects.filter(
+        status='pending_payment',
+        payment_deadline__isnull=False,
+        payment_deadline__lt=timezone.now()
+    ).update(status='expired')
+
+
 class BookAmenityView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Clear any stale expired holds first
         auto_expire_stale_bookings()
 
         serializer = CreateAmenityBookingSerializer(data=request.data)
@@ -81,8 +89,7 @@ class BookAmenityView(APIView):
         if amenity.amenity_status != 'available':
             return Response({'success': False, 'error': 'This amenity is currently unavailable.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check for conflicts:
-        # Overlapping bookings that are either 'confirmed' or currently held ('pending_payment' with valid deadline)
+        # Conflict check: Overlapping slots with confirmed bookings or active holds
         overlap = AmenityBooking.objects.filter(
             amenity=amenity,
             booking_date=data['booking_date']
@@ -95,8 +102,9 @@ class BookAmenityView(APIView):
         if overlap:
             return Response({'success': False, 'error': 'This time slot is currently booked or held pending payment.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        deadline = timezone.now() + timedelta(hours=1)
-
+        # Aware 3-hour deadline
+        deadline = timezone.now() + timedelta(hours=3)
+        print(deadline)
         booking = AmenityBooking.objects.create(
             booking_id=str(uuid.uuid4())[:6].upper(),
             amenity=amenity,
@@ -110,7 +118,7 @@ class BookAmenityView(APIView):
 
         return Response({
             'success': True,
-            'message': 'Amenity temporarily reserved! Please complete payment within 1 hour to confirm.',
+            'message': 'Amenity temporarily reserved! Please complete payment within 3 hours to confirm.',
             'booking': AmenityBookingSerializer(booking).data
         }, status=status.HTTP_201_CREATED)
 
@@ -137,13 +145,18 @@ class AmenityBookingsView(APIView):
 class ConfirmAmenityPaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request, booking_id):
         auto_expire_stale_bookings()
         role_name = request.user.role.role_name.lower() if request.user.role else ''
         if role_name not in ['chairman', 'secretary', 'admin']:
             return Response({'success': False, 'error': 'Unauthorized. Chairman/Secretary privilege required.'}, status=status.HTTP_403_FORBIDDEN)
 
-        booking = AmenityBooking.objects.filter(booking_id=booking_id, amenity__society=request.user.society).first()
+        booking = AmenityBooking.objects.select_for_update().filter(
+            booking_id=booking_id, 
+            amenity__society=request.user.society
+        ).first()
+        
         if not booking:
             return Response({'success': False, 'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -158,20 +171,39 @@ class ConfirmAmenityPaymentView(APIView):
         if booking.status == 'expired' or (deadline and timezone.now() > deadline):
             booking.status = 'expired'
             booking.save()
-            return Response({'success': False, 'error': 'Cannot confirm: 1-hour payment window has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                'success': False, 
+                'error': 'Cannot confirm: 3-hour payment window has expired.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ConfirmBookingPaymentSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            first_err = next(iter(serializer.errors.values()))[0]
+            return Response({'success': False, 'error': str(first_err)}, status=status.HTTP_400_BAD_REQUEST)
 
-        payment_ref = serializer.validated_data.get('payment_id') or str(uuid.uuid4())[:5].upper()
+        payment_ref = (serializer.validated_data.get('payment_id') or str(uuid.uuid4())[:5].upper())
+        paid_amount = serializer.validated_data['amount']
 
+        # 1. Update Booking status
         booking.status = 'confirmed'
         booking.payment_id = payment_ref
         booking.save()
 
+        # 2. Automatically record in SocietyIncome table
+        amenity_name = booking.amenity.amenity_name if booking.amenity else 'Amenity'
+
+        SocietyIncome.objects.create(
+            income_id=str(uuid.uuid4())[:6].upper(),
+            society=request.user.society,
+            income_type='Amenity Booking',
+            amount=paid_amount,
+            received_date=timezone.now().date(),
+            description=f"{amenity_name} Booking Charge"
+        )
+
         return Response({
             'success': True,
-            'message': 'Payment confirmed! Amenity booking is now officially locked.',
+            'message': f'Payment confirmed (₹{paid_amount}) and logged in Society Income!',
             'booking': AmenityBookingSerializer(booking).data
         }, status=status.HTTP_200_OK)
 
