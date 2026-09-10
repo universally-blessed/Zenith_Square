@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 
 class AddSocietyDialog extends StatefulWidget {
@@ -29,9 +30,9 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
   bool _hasNominee = true;
   bool _hasSecurity = true;
   bool _isLoading = false;
+  String? _dialogError;
 
   // Blocks & Flats Structure
-  // Format: [ { "block_name": "A", "flats": [ {"flat_number": "101", "floor_number": 1}, ... ] } ]
   final List<Map<String, dynamic>> _blocks = [];
 
   // Generator inputs for block & flats
@@ -39,23 +40,68 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
   final _genFloorsCtrl = TextEditingController(text: '3');
   final _genFlatsPerFloorCtrl = TextEditingController(text: '2');
 
+  @override
+  void dispose() {
+    _idController.dispose();
+    _nameController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _pincodeController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _maintenanceRateController.dispose();
+    _lateFeeController.dispose();
+    _genBlockNameCtrl.dispose();
+    _genFloorsCtrl.dispose();
+    _genFlatsPerFloorCtrl.dispose();
+    super.dispose();
+  }
+
+  Widget _buildFieldLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: isRequired
+            ? const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ]
+            : const [],
+      ),
+    );
+  }
+
   void _generateBlockAndFlats() {
     final blockName = _genBlockNameCtrl.text.trim().toUpperCase();
     final floors = int.tryParse(_genFloorsCtrl.text.trim()) ?? 0;
     final flatsPerFloor = int.tryParse(_genFlatsPerFloorCtrl.text.trim()) ?? 0;
 
     if (blockName.isEmpty || floors <= 0 || flatsPerFloor <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter valid Block Name, Floors, and Flats per floor.',
-          ),
-        ),
-      );
+      setState(() {
+        _dialogError =
+            'Please enter valid Block Name, Floors (>0), and Flats per floor (>0).';
+      });
       return;
     }
 
-    // Generate flats list (e.g. 101, 102, 201, 202)
+    if (_blocks.any((b) => b['block_name'] == blockName)) {
+      setState(() {
+        _dialogError = 'Block "$blockName" already exists in the list.';
+      });
+      return;
+    }
+
     final List<Map<String, dynamic>> generatedFlats = [];
     for (int floor = 1; floor <= floors; floor++) {
       for (int unit = 1; unit <= flatsPerFloor; unit++) {
@@ -67,6 +113,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
     setState(() {
       _blocks.add({'block_name': blockName, 'flats': generatedFlats});
       _genBlockNameCtrl.clear();
+      _dialogError = null;
     });
   }
 
@@ -74,18 +121,17 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_blocks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please add at least one block with flats before submitting.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      setState(() {
+        _dialogError =
+            'Please add at least one block with flats before submitting.';
+      });
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _dialogError = null;
+    });
 
     final payload = {
       'society_id': _idController.text.trim().toUpperCase(),
@@ -117,17 +163,15 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Society, blocks, and flats created successfully!'),
+            backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _dialogError = e.toString().replaceAll('Exception: ', '');
+        });
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -136,11 +180,15 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+    final pincodeRegex = RegExp(r'^[1-9][0-9]{5}$');
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 880,
-        height: 670,
+        height: 680,
         padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
@@ -176,156 +224,369 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // 1. Society ID & Name
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
                                   flex: 1,
-                                  child: TextFormField(
-                                    controller: _idController,
-                                    maxLength: 5,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Society ID (max 5)',
-                                      border: OutlineInputBorder(),
-                                      counterText: '',
-                                    ),
-                                    validator: (v) =>
-                                        (v == null || v.trim().isEmpty)
-                                        ? 'Required'
-                                        : null,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'Society ID',
+                                        isRequired: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _idController,
+                                        maxLength: 5,
+                                        decoration: const InputDecoration(
+                                          hintText: 'S0001',
+                                          border: OutlineInputBorder(),
+                                          counterText: '',
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty) return 'Required';
+                                          if (val.length < 2) return 'Min 2';
+                                          return null;
+                                        },
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   flex: 2,
-                                  child: TextFormField(
-                                    controller: _nameController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Society Name',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (v) =>
-                                        (v == null || v.trim().isEmpty)
-                                        ? 'Required'
-                                        : null,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'Society Name',
+                                        isRequired: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _nameController,
+                                        maxLength: 100,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Zenith Square',
+                                          border: OutlineInputBorder(),
+                                          counterText: '',
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty) return 'Required';
+                                          if (val.length < 3)
+                                            return 'Min 3 chars';
+                                          return null;
+                                        },
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
+
+                            // 2. Full Address
+                            _buildFieldLabel('Full Address', isRequired: true),
+                            const SizedBox(height: 4),
                             TextFormField(
                               controller: _addressController,
+                              maxLines: 2,
                               decoration: const InputDecoration(
-                                labelText: 'Address',
+                                hintText: 'Street, Landmark, Area...',
                                 border: OutlineInputBorder(),
+                                isDense: true,
                               ),
                               validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Required'
+                                  ? 'Address is required'
                                   : null,
                             ),
                             const SizedBox(height: 12),
+
+                            // 3. City & Pincode (Own row for clear visibility)
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: TextFormField(
-                                    controller: _cityController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'City',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (v) =>
-                                        (v == null || v.trim().isEmpty)
-                                        ? 'Required'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _pincodeController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Pincode',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (v) =>
-                                        (v == null || v.trim().isEmpty)
-                                        ? 'Required'
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _phoneController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Phone',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    validator: (v) =>
-                                        (v == null || v.trim().isEmpty)
-                                        ? 'Required'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _emailController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Email',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _maintenanceRateController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Rate (₹)',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _lateFeeController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Late Fee %',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    value: _billingCycle,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Billing',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'MONTHLY',
-                                        child: Text('Monthly'),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'City',
+                                        isRequired: true,
                                       ),
-                                      DropdownMenuItem(
-                                        value: 'QUARTERLY',
-                                        child: Text('Quarterly'),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _cityController,
+                                        maxLength: 50,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'[a-zA-Z\s]'),
+                                          ),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          hintText: 'Ahmedabad',
+                                          border: OutlineInputBorder(),
+                                          counterText: '',
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty)
+                                            return 'City is required';
+                                          if (val.length < 2)
+                                            return 'Min 2 characters';
+                                          if (!RegExp(
+                                            r'^[a-zA-Z\s]+$',
+                                          ).hasMatch(val)) {
+                                            return 'Only letters and spaces allowed (no numbers or symbols)';
+                                          }
+                                          return null;
+                                        },
                                       ),
                                     ],
-                                    onChanged: (v) =>
-                                        setState(() => _billingCycle = v!),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'Pincode',
+                                        isRequired: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _pincodeController,
+                                        maxLength: 6,
+                                        keyboardType: TextInputType.number,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
+                                        ],
+                                        decoration: const InputDecoration(
+                                          hintText: '380001',
+                                          border: OutlineInputBorder(),
+                                          counterText: '',
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty)
+                                            return 'Pincode required';
+                                          if (!pincodeRegex.hasMatch(val))
+                                            return '6 digits';
+                                          return null;
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // 4. Phone & Email
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'Phone',
+                                        isRequired: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _phoneController,
+                                        maxLength: 10,
+                                        keyboardType: TextInputType.phone,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
+                                        ],
+                                        decoration: const InputDecoration(
+                                          hintText: '10-digit phone',
+                                          border: OutlineInputBorder(),
+                                          counterText: '',
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty)
+                                            return 'Phone required';
+                                          if (!phoneRegex.hasMatch(val))
+                                            return 'Starts 6-9';
+                                          return null;
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel('Email (Optional)'),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _emailController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        decoration: const InputDecoration(
+                                          hintText: 'society@example.com',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isNotEmpty &&
+                                              !emailRegex.hasMatch(val)) {
+                                            return 'Invalid email';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // 5. Rate, Late Fee & Billing Cycle
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'Rate (₹)',
+                                        isRequired: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _maintenanceRateController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'^\d+\.?\d{0,2}'),
+                                          ),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          prefixText: '₹ ',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty) return 'Required';
+                                          final parsed = double.tryParse(val);
+                                          if (parsed == null || parsed < 0)
+                                            return 'Invalid';
+                                          return null;
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel('Late Fee %'),
+                                      const SizedBox(height: 4),
+                                      TextFormField(
+                                        controller: _lateFeeController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'^\d+\.?\d{0,2}'),
+                                          ),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          suffixText: '%',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isNotEmpty) {
+                                            final parsed = double.tryParse(val);
+                                            if (parsed == null ||
+                                                parsed < 0 ||
+                                                parsed > 100) {
+                                              return '0-100%';
+                                            }
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        'Billing',
+                                        isRequired: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      DropdownButtonFormField<String>(
+                                        value: _billingCycle,
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'MONTHLY',
+                                            child: Text('Monthly'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'QUARTERLY',
+                                            child: Text('Quarterly'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'YEARLY',
+                                            child: Text('Yearly'),
+                                          ),
+                                        ],
+                                        onChanged: (v) =>
+                                            setState(() => _billingCycle = v!),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -334,7 +595,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
 
                             // Feature Toggles
                             const Text(
-                              'Feature Flags',
+                              'Modular Feature Flags',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
@@ -402,7 +663,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 8),
 
-                            // Generator Input Box
+                            // Generator Box
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
@@ -418,10 +679,12 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         flex: 2,
                                         child: TextField(
                                           controller: _genBlockNameCtrl,
+                                          maxLength: 5,
                                           decoration: const InputDecoration(
                                             labelText: 'Block Name (e.g. A)',
                                             isDense: true,
                                             border: OutlineInputBorder(),
+                                            counterText: '',
                                           ),
                                         ),
                                       ),
@@ -430,6 +693,10 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         child: TextField(
                                           controller: _genFloorsCtrl,
                                           keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
                                           decoration: const InputDecoration(
                                             labelText: 'Floors',
                                             isDense: true,
@@ -442,6 +709,10 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         child: TextField(
                                           controller: _genFlatsPerFloorCtrl,
                                           keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
                                           decoration: const InputDecoration(
                                             labelText: 'Flats/Flr',
                                             isDense: true,
@@ -489,7 +760,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                               child: _blocks.isEmpty
                                   ? const Center(
                                       child: Text(
-                                        'No blocks added yet.\nUse the generator above to add building blocks.',
+                                        'No blocks added yet.\nUse the generator above to configure blocks.',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           color: Colors.grey,
@@ -543,7 +814,41 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                 ),
               ),
 
-              const Divider(height: 20),
+              if (_dialogError != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 16,
+                        color: Colors.red.shade800,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _dialogError!,
+                          style: TextStyle(
+                            color: Colors.red.shade900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const Divider(height: 16),
 
               // Action Buttons
               Row(
@@ -574,7 +879,10 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                           )
                         : const Text(
                             'Register Society & Structure',
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ],

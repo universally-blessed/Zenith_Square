@@ -61,9 +61,8 @@ class _UsersScreenState extends State<UsersScreen>
   }
 
   // Dialog for Scenario 1: Direct Assignment
-  // Dialog for Scenario 1: Direct Assignment
+  // Update _showAssignInitialRoleDialog inside _UsersScreenState:
   void _showAssignInitialRoleDialog(Map<String, dynamic> user) {
-    // Find initial role matching role_id or role_name
     String? currentRoleId = user['role_id']?.toString();
     if (currentRoleId == null && user['role'] != null) {
       currentRoleId = user['role'] is Map
@@ -71,7 +70,6 @@ class _UsersScreenState extends State<UsersScreen>
           : user['role']?.toString();
     }
 
-    // Ensure initial value exists in _roles list
     final bool roleExists = _roles.any(
       (r) => r['role_id'].toString() == currentRoleId,
     );
@@ -80,6 +78,7 @@ class _UsersScreenState extends State<UsersScreen>
         : (_roles.isNotEmpty ? _roles.first['role_id'].toString() : null);
 
     bool isSubmitting = false;
+    String? dialogError;
 
     showDialog(
       context: context,
@@ -91,13 +90,31 @@ class _UsersScreenState extends State<UsersScreen>
           title: Text('Assign Initial Role: ${user['user_name']}'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              RichText(
+                text: const TextSpan(
+                  text: 'Select Role',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 value: selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Select Role',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
                 items: _roles.map<DropdownMenuItem<String>>((r) {
                   return DropdownMenuItem(
                     value: r['role_id'].toString(),
@@ -106,8 +123,28 @@ class _UsersScreenState extends State<UsersScreen>
                 }).toList(),
                 onChanged: isSubmitting
                     ? null
-                    : (val) => setModalState(() => selectedRole = val),
+                    : (val) {
+                        setModalState(() {
+                          selectedRole = val;
+                          dialogError = null;
+                        });
+                      },
               ),
+              if (dialogError != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    dialogError!,
+                    style: TextStyle(color: Colors.red.shade900, fontSize: 12),
+                  ),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -123,15 +160,16 @@ class _UsersScreenState extends State<UsersScreen>
                   ? null
                   : () async {
                       if (selectedRole == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please select a role.'),
-                          ),
+                        setModalState(
+                          () => dialogError = 'Please select a role',
                         );
                         return;
                       }
 
-                      setModalState(() => isSubmitting = true);
+                      setModalState(() {
+                        isSubmitting = true;
+                        dialogError = null;
+                      });
 
                       try {
                         final success = await ApiService.assignInitialRole(
@@ -150,18 +188,13 @@ class _UsersScreenState extends State<UsersScreen>
                           _loadData();
                         }
                       } catch (e) {
-                        setModalState(() => isSubmitting = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Error: ${e.toString().replaceAll('Exception: ', '')}',
-                              ),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 4),
-                            ),
+                        setModalState(() {
+                          isSubmitting = false;
+                          dialogError = e.toString().replaceAll(
+                            'Exception: ',
+                            '',
                           );
-                        }
+                        });
                       }
                     },
               child: isSubmitting
@@ -184,9 +217,13 @@ class _UsersScreenState extends State<UsersScreen>
     );
   }
 
-  // Dialog for Scenario 2: Admin Proposes Role Change (Requires Chairman approval)
+  // Update _showInitiateChangeDialog inside _UsersScreenState:
   void _showInitiateChangeDialog(Map<String, dynamic> user) {
-    String? selectedRole = _roles.isNotEmpty ? _roles.first['role_id'] : null;
+    String? selectedRole = _roles.isNotEmpty
+        ? _roles.first['role_id'].toString()
+        : null;
+    bool isSubmitting = false;
+    String? dialogError;
 
     showDialog(
       context: context,
@@ -202,53 +239,125 @@ class _UsersScreenState extends State<UsersScreen>
                 style: TextStyle(color: Colors.grey, fontSize: 13),
               ),
               const SizedBox(height: 16),
+              RichText(
+                text: const TextSpan(
+                  text: 'Target Role',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 value: selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Target Role',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
                 items: _roles.map<DropdownMenuItem<String>>((r) {
                   return DropdownMenuItem(
                     value: r['role_id'].toString(),
                     child: Text(r['role_name'] ?? r['role_id']),
                   );
                 }).toList(),
-                onChanged: (val) => setModalState(() => selectedRole = val),
+                onChanged: isSubmitting
+                    ? null
+                    : (val) {
+                        setModalState(() {
+                          selectedRole = val;
+                          dialogError = null;
+                        });
+                      },
               ),
+              if (dialogError != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    dialogError!,
+                    style: TextStyle(color: Colors.red.shade900, fontSize: 12),
+                  ),
+                ),
+              ],
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange.shade800,
               ),
-              onPressed: () async {
-                if (selectedRole == null) return;
-                final success = await ApiService.createCommitteeChangeRequest(
-                  user['user_id'],
-                  selectedRole!,
-                );
-                if (success && mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Change request sent to Chairman for approval!',
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (selectedRole == null) {
+                        setModalState(
+                          () => dialogError = 'Please select a role',
+                        );
+                        return;
+                      }
+
+                      setModalState(() {
+                        isSubmitting = true;
+                        dialogError = null;
+                      });
+
+                      try {
+                        final success =
+                            await ApiService.createCommitteeChangeRequest(
+                              user['user_id'],
+                              selectedRole!,
+                            );
+                        if (success && mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Change request sent to Chairman for approval!',
+                              ),
+                            ),
+                          );
+                          _loadData();
+                        }
+                      } catch (e) {
+                        setModalState(() {
+                          isSubmitting = false;
+                          dialogError = e.toString().replaceAll(
+                            'Exception: ',
+                            '',
+                          );
+                        });
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
                       ),
+                    )
+                  : const Text(
+                      'Submit to Chairman',
+                      style: TextStyle(color: Colors.white),
                     ),
-                  );
-                  _loadData();
-                }
-              },
-              child: const Text(
-                'Submit to Chairman',
-                style: TextStyle(color: Colors.white),
-              ),
             ),
           ],
         ),
@@ -352,7 +461,7 @@ class _UsersScreenState extends State<UsersScreen>
                           icon: const Icon(Icons.clear, size: 18),
                           onPressed: () {
                             setState(() {
-                              _userSearchController.clear;
+                              _userSearchController.clear();
                               _userSearchQuery = '';
                               _userCurrentPage = 0;
                             });

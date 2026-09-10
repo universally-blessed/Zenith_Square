@@ -100,11 +100,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPressed: () async {
                       await SessionManager.clearSession();
                       if (mounted) {
-                        Navigator.pushReplacement(
+                        Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const LoginScreen(),
                           ),
+                          (route) => false,
                         );
                       }
                     },

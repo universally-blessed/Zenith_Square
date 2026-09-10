@@ -512,10 +512,14 @@ class AdminProfileView(APIView):
 
         # 2. Password change logic
         if new_password:
+            if len(new_password) < 6:
+                return Response({"error": "New password must be at least 6 characters long."}, status=status.HTTP_400_BAD_REQUEST)
             if not current_password:
                 return Response({"error": "Current password is required to set a new password."}, status=status.HTTP_400_BAD_REQUEST)
             if admin.a_password != current_password:
                 return Response({"error": "Current password does not match."}, status=status.HTTP_400_BAD_REQUEST)
+            if new_password == current_password:
+                return Response({"error": "New password must be different from current password."}, status=status.HTTP_400_BAD_REQUEST)
             admin.a_password = new_password
 
         admin.save()

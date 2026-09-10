@@ -16,6 +16,7 @@ class _SocietyFeaturesDialogState extends State<SocietyFeaturesDialog> {
   bool _hasBlockSecretary = false;
   bool _hasNominee = true;
   bool _hasSecurity = true;
+  String? _dialogError;
 
   @override
   void initState() {
@@ -27,30 +28,43 @@ class _SocietyFeaturesDialogState extends State<SocietyFeaturesDialog> {
     final societyId = widget.society['society_id'];
     try {
       final features = await ApiService.getSocietyFeatures(societyId);
-      if (features != null) {
-        setState(() {
-          _configId = features['config_id'];
-          _hasBlockSecretary = features['has_block_secretary'] ?? false;
-          _hasNominee = features['has_nominee'] ?? true;
-          _hasSecurity = features['has_security'] ?? true;
-          _loading = false;
-        });
-      } else {
-        setState(() => _loading = false);
+      if (mounted) {
+        if (features != null) {
+          setState(() {
+            _configId = features['config_id'];
+            _hasBlockSecretary = features['has_block_secretary'] ?? false;
+            _hasNominee = features['has_nominee'] ?? true;
+            _hasSecurity = features['has_security'] ?? true;
+            _loading = false;
+          });
+        } else {
+          setState(() => _loading = false);
+        }
       }
     } catch (e) {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _dialogError = 'Failed to load existing feature configuration.';
+        });
+      }
     }
   }
 
   void _saveFeatures() async {
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _dialogError = null;
+    });
+
     final societyId = widget.society['society_id'];
 
-    // Auto-generate CFG ID if new (config_id max length is 5)
+    // Auto-generate config_id if new (must be <= 5 chars)
     final configId =
         _configId ??
-        'C${societyId.toString().replaceAll('SOC', '')}'.padRight(5, '0');
+        'C${societyId.toString().replaceAll('SOC', '')}'
+            .padRight(5, '0')
+            .substring(0, 5);
 
     final payload = {
       'config_id': configId,
@@ -72,17 +86,15 @@ class _SocietyFeaturesDialogState extends State<SocietyFeaturesDialog> {
             content: Text(
               'Features updated for ${widget.society['society_name']}!',
             ),
+            backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _dialogError = e.toString().replaceAll('Exception: ', '');
+        });
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -157,6 +169,41 @@ class _SocietyFeaturesDialogState extends State<SocietyFeaturesDialog> {
                     activeColor: const Color(0xFF2563EB),
                     onChanged: (val) => setState(() => _hasSecurity = val),
                   ),
+
+                  if (_dialogError != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 16,
+                            color: Colors.red.shade800,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _dialogError!,
+                              style: TextStyle(
+                                color: Colors.red.shade900,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -188,7 +235,10 @@ class _SocietyFeaturesDialogState extends State<SocietyFeaturesDialog> {
                               )
                             : const Text(
                                 'Save Changes',
-                                style: TextStyle(color: Colors.white),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                       ),
                     ],
