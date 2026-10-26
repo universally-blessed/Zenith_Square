@@ -483,4 +483,21 @@ class CommunityApiService {
       throw Exception(data['error'] ?? 'Failed to load residents directory');
     }
   }
+
+  static Future<List<dynamic>> fetchRoles() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/roles/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['roles'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load roles');
+    }
+  }
 }

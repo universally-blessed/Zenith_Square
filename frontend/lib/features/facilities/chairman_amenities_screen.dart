@@ -515,6 +515,31 @@ class _ChairmanBookingApprovalsTabState
                                   ),
                                 ),
                               ),
+                            // Payment Deadline Banner for Temporary Hold
+                            if (rawStatus == 'pending_payment' &&
+                                !isExpired) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.timer_outlined,
+                                    size: 15,
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Payment deadline: ${b['formatted_deadline'] ?? (b['payment_deadline'] != null ? b['payment_deadline'].toString().substring(11, 16) : '--')}',
+                                      style: const TextStyle(
+                                        color: Colors.orange,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                             if (canConfirm || canCancel) ...[
                               const Divider(height: 20),
                               Row(
@@ -1346,7 +1371,7 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                     trailing: TextButton(
                       onPressed: () async {
                         final picked = await showDatePicker(
-                          context: context,
+                          context: ctx, // <-- Use the modal's ctx here
                           initialDate: purchaseDate,
                           firstDate: DateTime(2000),
                           lastDate: DateTime.now(),
@@ -1712,7 +1737,7 @@ class _AssetMaintenanceSheetState extends State<_AssetMaintenanceSheet> {
                 if (!formKey.currentState!.validate()) return;
                 final desc = descController.text.trim();
                 final cost = double.parse(costController.text.trim());
-                Navigator.pop(ctx);
+
                 try {
                   await FacilitiesApiService.recordAssetMaintenance(
                     assetId: widget.asset['asset_id'],
@@ -1720,7 +1745,18 @@ class _AssetMaintenanceSheetState extends State<_AssetMaintenanceSheet> {
                     maintenanceDate: date.toIso8601String().substring(0, 10),
                     cost: cost,
                   );
-                  _loadLogs();
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                  }
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Maintenance log recorded successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    _loadLogs();
+                  }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

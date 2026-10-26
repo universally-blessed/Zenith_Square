@@ -229,23 +229,23 @@ class _ChairmanAlertsTabState extends State<_ChairmanAlertsTab> {
                     items: const [
                       DropdownMenuItem(
                         value: 'Medical Emergency',
-                        child: Text('Medical Emergency 🚑'),
+                        child: Text('Medical Emergency'),
                       ),
                       DropdownMenuItem(
                         value: 'Fire Emergency',
-                        child: Text('Fire Hazard 🔥'),
+                        child: Text('Fire Hazard'),
                       ),
                       DropdownMenuItem(
                         value: 'Lift Stuck',
-                        child: Text('Lift / Elevator Stuck 🛗'),
+                        child: Text('Lift / Elevator Stuck'),
                       ),
                       DropdownMenuItem(
                         value: 'Theft / Intruder',
-                        child: Text('Theft / Suspicious Activity 🚨'),
+                        child: Text('Theft / Suspicious Activity'),
                       ),
                       DropdownMenuItem(
                         value: 'Other Emergency',
-                        child: Text('Other Emergency ⚠️'),
+                        child: Text('Other Emergency'),
                       ),
                     ],
                     onChanged: (val) {

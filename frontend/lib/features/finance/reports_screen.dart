@@ -523,7 +523,11 @@ class _SocietyReportsScreenState extends State<SocietyReportsScreen> {
   Widget _buildSummaryDataTable(List<dynamic> monthly) {
     if (monthly.isEmpty) return const SizedBox.shrink();
 
-    final months = monthly.map((m) => m['month_abbr'].toString()).toList();
+    // Reverse so current month (Sep) shows immediately next to Metric
+    final reversedMonthly = monthly.reversed.toList();
+    final months = reversedMonthly
+        .map((m) => m['month_abbr'].toString())
+        .toList();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -534,6 +538,8 @@ class _SocietyReportsScreenState extends State<SocietyReportsScreen> {
           border: Border.all(color: Colors.grey.shade300),
         ),
         child: DataTable(
+          columnSpacing: 16,
+          horizontalMargin: 12,
           headingRowColor: WidgetStateProperty.all(Colors.blueGrey.shade900),
           headingTextStyle: const TextStyle(
             color: Colors.white,
@@ -550,81 +556,75 @@ class _SocietyReportsScreenState extends State<SocietyReportsScreen> {
             _sectionDataRow('FINANCIAL', months.length),
             _metricRow(
               'Collection Rate (%)',
-              monthly,
+              reversedMonthly,
               (m) => '${m['collection_rate']}%',
             ),
             _metricRow(
               'Total Inflow (₹)',
-              monthly,
-              (m) => '₹ ${m['total_income'] ?? m['collection_rate']}',
+              reversedMonthly,
+              (m) => '₹ ${m['total_income'] ?? 0.0}',
             ),
             _metricRow(
               'Other Incomes (₹)',
-              monthly,
+              reversedMonthly,
               (m) => '₹ ${m['other_income'] ?? 0.0}',
             ),
             _metricRow(
               'Total Expenses (₹)',
-              monthly,
+              reversedMonthly,
               (m) => '₹ ${m['total_expenses']}',
             ),
             _metricRow(
               'Net Operating Surplus (₹)',
-              monthly,
+              reversedMonthly,
               (m) => '₹ ${m['net_surplus'] ?? 0.0}',
             ),
             _metricRow(
               'Amenity Revenue (₹)',
-              monthly,
-              (m) => '₹ ${m['amenity_revenue']}',
+              reversedMonthly,
+              (m) => '₹ ${m['amenity_revenue'] ?? 0.0}',
             ),
-            _metricRow(
-              'Defaulters (Count)',
-              monthly,
-              (m) => '${m['defaulters_count']}',
-            ),
-
             _sectionDataRow('SECURITY & COMPLAINTS', months.length),
             _metricRow(
               'Total Security Alerts',
-              monthly,
+              reversedMonthly,
               (m) => '${m['security_alerts']}',
             ),
             _metricRow(
               'Complaints Filed',
-              monthly,
+              reversedMonthly,
               (m) => '${m['complaints_filed']}',
             ),
             _metricRow(
               'Complaints Resolved',
-              monthly,
+              reversedMonthly,
               (m) => '${m['complaints_resolved']}',
             ),
             _metricRow(
               'Avg Resolution (Days)',
-              monthly,
+              reversedMonthly,
               (m) => '${m['avg_resolution_days']} days',
             ),
 
             _sectionDataRow('OPERATIONS', months.length),
             _metricRow(
               'Total Visitors',
-              monthly,
+              reversedMonthly,
               (m) => '${m['total_visitors']}',
             ),
             _metricRow(
               'Amenity Bookings',
-              monthly,
+              reversedMonthly,
               (m) => '${m['amenity_bookings']}',
             ),
             _metricRow(
               'Participation Rate (%)',
-              monthly,
+              reversedMonthly,
               (m) => '${m['participation_rate']}%',
             ),
             _metricRow(
               'Asset Maintenance (₹)',
-              monthly,
+              reversedMonthly,
               (m) => '₹ ${m['asset_maintenance_cost']}',
             ),
           ],

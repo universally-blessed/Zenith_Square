@@ -92,12 +92,70 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
     }
   }
 
-  Future<void> _handleVote(String pollId) async {
+  Future<void> _handleVote(String pollId, String optionText) async {
     final selectedOptionId = _selectedOptionByPoll[pollId];
     if (selectedOptionId == null) {
-      _showToast('Please select an option to vote', isError: true);
+      _showToast('Please select an option before submitting', isError: true);
       return;
     }
+
+    // Explicit Confirmation Modal matching poll_screen.dart
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Your Vote'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('You are casting your vote for:'),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                optionText,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade900,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '⚠️ Notice: Votes cannot be edited, retracted, or changed once cast.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Review Choice'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade800,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm & Submit'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     setState(() => _votingPollIds.add(pollId));
 
@@ -524,7 +582,12 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
           return RefreshIndicator(
             onRefresh: () async => _loadPolls(),
             child: ListView.separated(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.only(
+                left: 12.0,
+                right: 12.0,
+                top: 12.0,
+                bottom: 80.0,
+              ),
               itemCount: polls.length,
               separatorBuilder: (ctx, i) => const SizedBox(height: 12),
               itemBuilder: (ctx, i) {
@@ -540,6 +603,18 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                 final totalVotes = (poll['total_votes'] ?? 0) as int;
                 final options = (poll['options'] as List<dynamic>?) ?? [];
                 final isSubmitting = _votingPollIds.contains(pollId);
+
+                // Find the selected option's text for the dialog preview
+                String selectedOptionText = '';
+                if (_selectedOptionByPoll[pollId] != null) {
+                  final found = options.firstWhere(
+                    (o) => o['option_id'] == _selectedOptionByPoll[pollId],
+                    orElse: () => null,
+                  );
+                  if (found != null) {
+                    selectedOptionText = found['option_text'] ?? '';
+                  }
+                }
 
                 return Card(
                   elevation: 0,
@@ -715,29 +790,31 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                           );
                         }),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        // Action / Info Footer
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'Total Votes: $totalVotes • By $createdBy',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            if (!hasVoted && !isClosed)
+                            if (!hasVoted && !isClosed) ...[
                               ElevatedButton(
-                                onPressed: isSubmitting
+                                onPressed:
+                                    isSubmitting ||
+                                        _selectedOptionByPoll[pollId] == null
                                     ? null
-                                    : () => _handleVote(pollId),
+                                    : () => _handleVote(
+                                        pollId,
+                                        selectedOptionText,
+                                      ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange.shade700,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 8,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
                                 child: isSubmitting
@@ -749,8 +826,22 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
                                           color: Colors.white,
                                         ),
                                       )
-                                    : const Text('Submit Vote'),
+                                    : const Text(
+                                        'Submit Vote',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                               ),
+                              const SizedBox(height: 8),
+                            ],
+                            Text(
+                              'Total Votes: $totalVotes • By $createdBy',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
                           ],
                         ),
                       ],
