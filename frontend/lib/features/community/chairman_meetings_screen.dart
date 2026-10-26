@@ -695,21 +695,33 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
     });
   }
 
-  // Update _openRoleChangeRequestModal in _ChairmanCommitteeTabState:
-  // Update _openRoleChangeRequestModal in _ChairmanCommitteeTabState:
   void _openRoleChangeRequestModal() async {
     List<dynamic> members = [];
+    List<dynamic> roles = [];
+
     try {
-      members = await CommunityApiService.fetchSocietyMembersDropdown();
+      final results = await Future.wait([
+        CommunityApiService.fetchSocietyMembersDropdown(),
+        CommunityApiService.fetchRoles(),
+      ]);
+      members = results[0];
+      roles = results[1];
     } catch (_) {}
 
     if (!mounted) return;
+
+    if (roles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load roles from database.')),
+      );
+      return;
+    }
 
     final formKey = GlobalKey<FormState>();
     String? selectedUserId = members.isNotEmpty
         ? members.first['user_id']
         : null;
-    String selectedRoleId = 'R02';
+    String selectedRoleId = roles.first['role_id'].toString();
     bool isSubmitting = false;
     String? modalError;
 
@@ -775,28 +787,27 @@ class _ChairmanCommitteeTabState extends State<_ChairmanCommitteeTab> {
                   ),
                 const SizedBox(height: 12),
 
+                // Dynamically populated from database roles
                 DropdownButtonFormField<String>(
                   value: selectedRoleId,
                   decoration: const InputDecoration(
                     labelText: 'Proposed Role *',
                     border: OutlineInputBorder(),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'R01', child: Text('Resident')),
-                    DropdownMenuItem(value: 'R02', child: Text('Secretary')),
-                    DropdownMenuItem(
-                      value: 'R03',
-                      child: Text('Block Secretary'),
-                    ),
-                    DropdownMenuItem(value: 'R04', child: Text('Treasurer')),
-                  ],
+                  items: roles.map((r) {
+                    return DropdownMenuItem<String>(
+                      value: r['role_id'].toString(),
+                      child: Text(r['role_name'] ?? r['role_id'].toString()),
+                    );
+                  }).toList(),
                   onChanged: (v) {
                     if (v != null) setModalState(() => selectedRoleId = v);
                   },
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Please select a role' : null,
                 ),
                 const SizedBox(height: 14),
 
-                // INLINE ERROR BANNER
                 if (modalError != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(

@@ -16,7 +16,8 @@ from .views import (
     TenantListCreateView,
     SocietyFlatsDropdownListView,
     TenantMoveOutView,
-    SocietyResidentDirectoryView
+    SocietyResidentDirectoryView,
+    AvailableRolesListView
 )
 
 urlpatterns = [
@@ -44,4 +45,5 @@ urlpatterns = [
     path('tenants/', TenantListCreateView.as_view(), name='tenant-list-create'),
     path('tenants/<str:tenant_id>/move-out/', TenantMoveOutView.as_view(), name='tenant-move-out'),
     path('flats-dropdown/', SocietyFlatsDropdownListView.as_view(), name='society-flats-dropdown'),
+    path('roles/', AvailableRolesListView.as_view(), name='available-roles'),
 ]

@@ -147,10 +147,18 @@ class CommitteeChangeRequestView(APIView):
         if not target_user:
             return Response({'success': False, 'error': 'Target user not found in this society.'}, status=status.HTTP_404_NOT_FOUND)
 
-        new_role = Roles.objects.filter(role_id=data['new_role_id']).first()
+        # Resilient lookup: supports role_id ('R0005'), exact name ('Treasurer'), or slug ('block_secretary')
+        role_input = str(data.get('new_role_id') or '').strip()
+        new_role = Roles.objects.filter(role_id=role_input).first()
+        
+        if not new_role:
+            new_role = Roles.objects.filter(role_name__iexact=role_input).first()
+            
+        if not new_role:
+            new_role = Roles.objects.filter(role_name__iexact=role_input.replace('_', ' ')).first()
+
         if not new_role:
             return Response({'success': False, 'error': 'Invalid role specified.'}, status=status.HTTP_400_BAD_REQUEST)
-
         # Prevent duplicate concurrent pending requests for the same user
         pending_exists = CommitteeChange.objects.filter(
             target_user=target_user,
@@ -740,3 +748,11 @@ class TenantMoveOutView(APIView):
             'message': 'Tenant marked as moved out, and flat occupancy updated.',
             'tenant': TenantSerializer(tenant).data
         }, status=status.HTTP_200_OK)
+
+class AvailableRolesListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        roles = Roles.objects.exclude(role_name__iexact='Admin').order_by('role_id')
+        role_data = [{'role_id': r.role_id, 'role_name': r.role_name} for r in roles]
+        return Response({'success': True, 'roles': role_data}, status=status.HTTP_200_OK)

@@ -3,7 +3,7 @@ from datetime import datetime, date,timedelta
 from decimal import Decimal
 import calendar
 from django.db import transaction
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count,Q
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -329,6 +329,7 @@ class SocietyExecutiveReportView(APIView):
             end_date = date(year, month, last_day)
 
             # Financial Metrics
+            # 1. Maintenance collections from flat bills
             billed = MaintenanceBill.objects.filter(
                 flat__block__society=society,
                 bill_month__icontains=m_name
@@ -362,11 +363,31 @@ class SocietyExecutiveReportView(APIView):
                 payment_date__date__range=(start_date, end_date)
             ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
-            defaulters_count = MaintenanceBill.objects.filter(
-                flat__block__society=society,
-                bill_month__icontains=m_name,
-                status='pending'
-            ).values('flat_id').distinct().count()
+# 2. Amenity / Facility Revenue from SocietyIncome
+            amenity_income = SocietyIncome.objects.filter(
+                society=society,
+                received_date__range=(start_date, end_date)
+            ).filter(
+                Q(income_type__icontains='amenity') |
+                Q(income_type__icontains='clubhouse') |
+                Q(income_type__icontains='rent') |
+                Q(income_type__icontains='hall')
+            ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
+            # 3. Other / Miscellaneous Incomes (excluding amenity revenue)
+            other_income = SocietyIncome.objects.filter(
+                society=society,
+                received_date__range=(start_date, end_date)
+            ).exclude(
+                Q(income_type__icontains='amenity') |
+                Q(income_type__icontains='clubhouse') |
+                Q(income_type__icontains='rent') |
+                Q(income_type__icontains='hall')
+            ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+
+            total_soc_income = amenity_income + other_income
+            total_inflow = collected + total_soc_income
+            net_surplus = total_inflow - soc_expenses
 
             # Security & Complaints
             alerts_count = SecurityAlerts.objects.filter(
@@ -416,11 +437,10 @@ class SocietyExecutiveReportView(APIView):
                 'year': year,
                 'collection_rate': collection_rate,
                 'total_income': float(total_inflow),
-                'other_income': float(soc_income),
+                'other_income': float(other_income),
                 'total_expenses': float(soc_expenses),
                 'net_surplus': float(net_surplus),
-                'amenity_revenue': float(amenity_rev),
-                'defaulters_count': defaulters_count,
+                'amenity_revenue': float(amenity_income),
                 'security_alerts': alerts_count,
                 'complaints_filed': complaints_filed,
                 'complaints_resolved': complaints_resolved,
