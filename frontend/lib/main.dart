@@ -35,6 +35,8 @@ import './features/community/secretary_directory_screen.dart';
 import './features/community/secretary_meetings_screen.dart';
 import './features/security/security_screen.dart';
 import './features/security/chairman_security_screen.dart';
+import './features/security/security_guard_home_screen.dart';
+import './features/security/security_guard_desk_screen.dart';
 import './features/finance/reports_screen.dart';
 import './features/finance/block_secretary_finance_screen.dart';
 
@@ -139,6 +141,9 @@ class MyApp extends StatelessWidget {
         '/block-secretary-finance': (context) =>
             const BlockSecretaryFinanceScreen(),
         '/block-secretary-security': (context) => const SecurityScreen(),
+
+        '/security-home': (context) => const SecurityGuardHomeScreen(),
+        '/security-guard-desk': (context) => const SecurityGuardDeskScreen(),
       },
     );
   }

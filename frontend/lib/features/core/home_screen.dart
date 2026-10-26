@@ -14,7 +14,24 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _profileFuture = ApiService.fetchUserProfile();
+    _profileFuture = _loadProfileAndCheckRole();
+  }
+
+  Future<Map<String, dynamic>> _loadProfileAndCheckRole() async {
+    try {
+      final profile = await ApiService.fetchUserProfile();
+      final role = (profile['role_name'] ?? '').toString().toLowerCase();
+      if (mounted) {
+        if (role.contains('security') || role.contains('guard')) {
+          Navigator.pushNamedAndRemoveUntil(context, '/security-home', (route) => false);
+        } else if (role == 'chairman') {
+          Navigator.pushNamedAndRemoveUntil(context, '/chairman-home', (route) => false);
+        }
+      }
+      return profile;
+    } catch (_) {
+      rethrow;
+    }
   }
 
   void _handleLogout() async {
@@ -57,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return RefreshIndicator(
             onRefresh: () async {
               setState(() {
-                _profileFuture = ApiService.fetchUserProfile();
+                _profileFuture = _loadProfileAndCheckRole();
               });
             },
             child: ListView(

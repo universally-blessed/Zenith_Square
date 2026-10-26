@@ -44,8 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
           targetRoute = '/secretary-home';
         } else if (role == 'block_secretary' || role == 'block secretary') {
           targetRoute = '/block-secretary-home';
+        } else if (role.contains('security') || role.contains('guard')) {
+          targetRoute = '/security-home';
         }
 
+        // Clear the entire stack so no back buttons can ever appear on the home screen
         Navigator.pushNamedAndRemoveUntil(
           context,
           targetRoute,

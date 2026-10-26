@@ -5,6 +5,8 @@ from .views import (
     DismissSecurityAlertView,
     VisitorLogsListCreateView,
     LogVisitorExitView,
+    VisitorLookupView,
+    SecurityFlatsDropdownView,
 )
 
 urlpatterns = [
@@ -16,4 +18,6 @@ urlpatterns = [
     # Visitor Gate Management
     path('visitors/logs/', VisitorLogsListCreateView.as_view(), name='visitor-logs'),
     path('visitors/logs/<int:log_id>/exit/', LogVisitorExitView.as_view(), name='visitor-exit'),
+    path('visitors/lookup/', VisitorLookupView.as_view(), name='visitor-lookup'),
+    path('flats-dropdown/', SecurityFlatsDropdownView.as_view(), name='security-flats-dropdown'),
 ]
