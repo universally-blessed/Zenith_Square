@@ -38,6 +38,7 @@ class VisitorLogs(models.Model):
     log_id = models.AutoField(primary_key=True)
     visitor = models.ForeignKey(Visitor, models.DO_NOTHING, db_column='visitor_id', blank=True, null=True)
     flat = models.ForeignKey('core_api.Flats', models.DO_NOTHING, db_column='flat_id', blank=True, null=True)
+    society = models.ForeignKey('core_api.Societies', models.DO_NOTHING, db_column='society_id', blank=True, null=True)
     entry_time = models.DateTimeField(default=timezone.now)
     exit_time = models.DateTimeField(blank=True, null=True)
     purpose = models.CharField(max_length=200)

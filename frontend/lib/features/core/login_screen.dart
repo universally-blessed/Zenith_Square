@@ -35,8 +35,13 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
-        final role = response['role'];
-        final targetRoute = (role == 'chairman') ? '/chairman-home' : '/home';
+        final role = (response['role'] ?? '').toString().toLowerCase();
+        String targetRoute = '/home';
+        if (role == 'chairman') {
+          targetRoute = '/chairman-home';
+        } else if (role.contains('security') || role.contains('guard')) {
+          targetRoute = '/security-home';
+        }
 
         // Clear the entire stack so no back buttons can ever appear on the home screen
         Navigator.pushNamedAndRemoveUntil(

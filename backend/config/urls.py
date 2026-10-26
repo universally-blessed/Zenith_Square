@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.urls import path,include
 
+
+# Reload trigger
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/',include('core_api.urls')),
@@ -11,3 +13,4 @@ urlpatterns = [
     path('api/community/',include('community.urls')),
     path('api/security/',include('security.urls')),
 ]
+

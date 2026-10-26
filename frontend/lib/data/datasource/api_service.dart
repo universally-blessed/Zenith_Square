@@ -95,6 +95,10 @@ class ApiService {
     return await _storage.read(key: 'access_token');
   }
 
+  static Future<String?> getUserRole() async {
+    return await _storage.read(key: 'user_role');
+  }
+
   static Future<void> clearAuthData() async {
     await _storage.deleteAll();
   }

@@ -27,6 +27,8 @@ import './features/community/lost_found_screen.dart';
 import './features/community/chairman_lost_found_screen.dart';
 import './features/security/security_screen.dart';
 import './features/security/chairman_security_screen.dart';
+import './features/security/security_guard_home_screen.dart';
+import './features/security/security_guard_desk_screen.dart';
 import './features/finance/reports_screen.dart';
 
 void main() async {
@@ -105,6 +107,9 @@ class MyApp extends StatelessWidget {
         '/chairman-security': (context) => const ChairmanSecurityScreen(),
         '/chairman-tenants': (context) => const TenantListScreen(),
         '/chairman-reports': (context) => const SocietyReportsScreen(),
+
+        '/security-home': (context) => const SecurityGuardHomeScreen(),
+        '/security-guard-desk': (context) => const SecurityGuardDeskScreen(),
       },
     );
   }

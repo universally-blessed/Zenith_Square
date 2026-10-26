@@ -50,6 +50,7 @@ python -m venv .venv
 - **Windows (Command Prompt):**
   ```cmd
   .venv\Scripts\activate
+  
   ```
 - **Windows (PowerShell):**
   ```powershell
