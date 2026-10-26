@@ -192,4 +192,21 @@ class FinanceApiService {
       throw Exception(data['error'] ?? 'Failed to record income');
     }
   }
+
+  static Future<Map<String, dynamic>> fetchBlockReport() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/block-report/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load block report');
+    }
+  }
 }

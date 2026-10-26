@@ -17,9 +17,19 @@ class ComplaintListCreateView(APIView):
     def get(self, request):
         role_name = request.user.role.role_name.lower() if request.user.role else 'resident'
         
-        # Chairman sees all complaints in their society; Resident sees only theirs
+        # Chairman & General Secretary see all complaints across society
         if role_name in ['chairman', 'secretary', 'admin']:
             complaints = Complaint.objects.filter(block__society=request.user.society).order_by('-created_at')
+        
+        # Block Secretary sees complaints from their specific block
+        elif role_name in ['block_secretary', 'block secretary']:
+            resident = Resident.objects.filter(user=request.user).first()
+            if resident and resident.flat and resident.flat.block:
+                complaints = Complaint.objects.filter(block=resident.flat.block).order_by('-created_at')
+            else:
+                complaints = Complaint.objects.filter(block__society=request.user.society).order_by('-created_at')
+        
+        # Standard Residents see only their own complaints
         else:
             resident = Resident.objects.filter(user=request.user).first()
             if not resident:
@@ -57,14 +67,13 @@ class ComplaintListCreateView(APIView):
                 'complaint': ComplaintSerializer(complaint).data
             }, status=status.HTTP_201_CREATED)
 
-
-# 2. Update Complaint Status (Chairman/Admin only)
+# 2. Update Complaint Status
 class UpdateComplaintStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, complaint_id):
         role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin']:
+        if role_name not in ['chairman', 'secretary', 'block_secretary', 'block secretary', 'admin']:
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         complaint = Complaint.objects.filter(complaint_id=complaint_id, block__society=request.user.society).first()
@@ -93,7 +102,7 @@ class FeedbackView(APIView):
 
     def get(self, request):
         role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin']:
+        if role_name not in ['chairman', 'secretary', 'block_secretary', 'block secretary', 'admin']:
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         feedbacks = Feedback.objects.filter(resident__flat__block__society=request.user.society).order_by('-created_at')

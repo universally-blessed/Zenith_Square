@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime, date,timedelta
 from decimal import Decimal
 import calendar
@@ -529,3 +530,73 @@ class SocietyIncomeView(APIView):
             'message': 'Income recorded successfully!',
             'income': SocietyIncomeSerializer(income).data
         }, status=status.HTTP_201_CREATED)
+
+# finance/views.py
+
+# finance/views.py
+
+class BlockMaintenanceReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        role_name = user.role.role_name.lower() if user.role else ''
+
+        # Authorized roles: Block Secretary, Chairman, Secretary, Admin
+        if role_name not in ['block_secretary', 'block secretary', 'chairman', 'secretary', 'admin']:
+            return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get the block belonging to the logged-in user's flat
+        resident = Resident.objects.filter(user=user).first()
+        if not resident or not resident.flat or not resident.flat.block:
+            return Response({'success': False, 'error': 'User block context missing.'}, status=status.HTTP_404_NOT_FOUND)
+
+        user_block = resident.flat.block
+        bill_month = request.query_params.get('bill_month', datetime.now().strftime('%B %Y'))
+
+        # Fetch all flats in the block and sort numerically
+        flats = list(Flats.objects.filter(block=user_block))
+
+        def extract_flat_num(flat):
+            numbers = re.findall(r'\d+', flat.flat_number or '')
+            return int(numbers[0]) if numbers else 0
+
+        flats.sort(key=extract_flat_num)
+        
+        report_data = []
+        paid_count = 0
+        pending_count = 0
+
+        for flat in flats:
+            bill = MaintenanceBill.objects.filter(flat=flat, bill_month__icontains=bill_month).first()
+            primary_occ = Occupancy.objects.filter(flat=flat, is_primary=True).select_related('resident__user').first()
+            resident_name = primary_occ.resident.user.user_name if (primary_occ and primary_occ.resident and primary_occ.resident.user) else 'N/A'
+
+            bill_status = bill.status if bill else 'unbilled'
+            if bill_status == 'paid':
+                paid_count += 1
+            elif bill_status == 'pending':
+                pending_count += 1
+
+            report_data.append({
+                'flat_id': flat.flat_id,
+                'flat_number': flat.flat_number,
+                'resident_name': resident_name,
+                'bill_month': bill_month,
+                'payable_amount': float(bill.payable_amount) if bill else 0.0,
+                'status': bill_status,
+                'due_date': str(bill.due_date) if bill else '--',
+            })
+
+        return Response({
+            'success': True,
+            'block_name': user_block.block_name,
+            'bill_month': bill_month,
+            'summary': {
+                'total_flats': len(flats),
+                'paid_count': paid_count,
+                'pending_count': pending_count,
+                'collection_rate': round((paid_count / len(flats) * 100), 1) if flats else 0.0
+            },
+            'bills': report_data
+        }, status=status.HTTP_200_OK)

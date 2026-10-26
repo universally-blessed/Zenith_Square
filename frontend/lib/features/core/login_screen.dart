@@ -35,10 +35,17 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
-        final role = response['role'];
-        final targetRoute = (role == 'chairman') ? '/chairman-home' : '/home';
+        final role = (response['role'] ?? '').toString().toLowerCase();
 
-        // Clear the entire stack so no back buttons can ever appear on the home screen
+        String targetRoute = '/home';
+        if (role == 'chairman') {
+          targetRoute = '/chairman-home';
+        } else if (role == 'secretary') {
+          targetRoute = '/secretary-home';
+        } else if (role == 'block_secretary' || role == 'block secretary') {
+          targetRoute = '/block-secretary-home';
+        }
+
         Navigator.pushNamedAndRemoveUntil(
           context,
           targetRoute,
@@ -90,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sign in to your resident account',
+                    'Sign in to your account',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),

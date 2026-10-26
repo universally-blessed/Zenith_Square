@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../data/datasource/community_api_service.dart';
+import '../../data/datasource/api_service.dart';
 import './add_tenant_screen.dart';
 
 class TenantListScreen extends StatefulWidget {
-  const TenantListScreen({Key? key}) : super(key: key);
+  const TenantListScreen({super.key});
 
   @override
   State<TenantListScreen> createState() => _TenantListScreenState();
@@ -12,24 +13,34 @@ class TenantListScreen extends StatefulWidget {
 class _TenantListScreenState extends State<TenantListScreen> {
   List<dynamic> _tenants = [];
   bool _isLoading = true;
+  bool _canManage = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchTenants();
+    _checkPermissionsAndFetch();
   }
 
-  Future<void> _fetchTenants() async {
+  Future<void> _checkPermissionsAndFetch() async {
     setState(() => _isLoading = true);
     try {
+      final profile = await ApiService.fetchUserProfile();
+      final role = (profile['role_name'] ?? '').toString().toLowerCase();
+
+      // Only Secretary, Chairman, and Admin can add or remove tenants
+      final canEdit = ['chairman', 'secretary', 'admin'].contains(role);
+
       final tenants = await CommunityApiService.fetchTenants();
-      setState(() {
-        _tenants = tenants;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() {
+          _canManage = canEdit;
+          _tenants = tenants;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
         );
@@ -63,14 +74,18 @@ class _TenantListScreenState extends State<TenantListScreen> {
 
     try {
       await CommunityApiService.markTenantMoveOut(tenantId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tenant status updated to inactive.')),
-      );
-      _fetchTenants();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tenant status updated to inactive.')),
+        );
+        _checkPermissionsAndFetch();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
     }
   }
 
@@ -85,23 +100,25 @@ class _TenantListScreenState extends State<TenantListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.person_add),
-        label: const Text('Add Tenant'),
-        onPressed: () async {
-          final added = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddTenantScreen()),
-          );
-          if (added == true) _fetchTenants();
-        },
-      ),
+      floatingActionButton: _canManage
+          ? FloatingActionButton.extended(
+              icon: const Icon(Icons.person_add),
+              label: const Text('Add Tenant'),
+              onPressed: () async {
+                final added = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddTenantScreen()),
+                );
+                if (added == true) _checkPermissionsAndFetch();
+              },
+            )
+          : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _tenants.isEmpty
           ? const Center(child: Text('No tenants recorded yet.'))
           : RefreshIndicator(
-              onRefresh: _fetchTenants,
+              onRefresh: _checkPermissionsAndFetch,
               child: ListView.separated(
                 padding: const EdgeInsets.all(12),
                 itemCount: _tenants.length,
@@ -158,7 +175,7 @@ class _TenantListScreenState extends State<TenantListScreen> {
                           Text('Move-In: ${t['move_in_date'] ?? '--'}'),
                           if (t['move_out_date'] != null)
                             Text('Move-Out: ${t['move_out_date']}'),
-                          if (isActive) ...[
+                          if (isActive && _canManage) ...[
                             const Divider(),
                             Align(
                               alignment: Alignment.centerRight,

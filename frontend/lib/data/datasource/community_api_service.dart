@@ -500,4 +500,68 @@ class CommunityApiService {
       throw Exception(data['error'] ?? 'Failed to load roles');
     }
   }
+
+  static Future<List<dynamic>> fetchSocietyDocuments() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/documents/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['documents'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load society documents');
+    }
+  }
+
+  // Upload Society Document (POST /api/community/documents/)
+  static Future<Map<String, dynamic>> uploadSocietyDocument({
+    required String title,
+    required String documentType,
+    required String fileUrl,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/documents/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'title': title,
+        'document_type': documentType,
+        'file_url': fileUrl,
+      }),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 201 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to upload document');
+    }
+  }
+
+  // Delete Society Document (DELETE /api/community/documents/<id>/delete/)
+  static Future<Map<String, dynamic>> deleteSocietyDocument(
+    String documentId,
+  ) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.delete(
+      Uri.parse('$baseUrl/documents/$documentId/delete/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to delete document');
+    }
+  }
 }

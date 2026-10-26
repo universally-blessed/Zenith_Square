@@ -219,6 +219,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     Colors.blue,
                     '/nominee',
                   ),
+                  _ActionItem(
+                    'Society Documents',
+                    Icons.receipt_long,
+                    Colors.indigo,
+                    '/society-documents',
+                  ),
                 ]),
               ],
             ),

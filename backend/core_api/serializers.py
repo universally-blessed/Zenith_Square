@@ -76,17 +76,22 @@ class RegisterResidentSerializer(serializers.Serializer):
 
 
 # 1. Profile Serializer (Read & Update)
+# In core_api/serializers.py
+
 class UserProfileSerializer(serializers.ModelSerializer):
     society_id = serializers.CharField(source='society.society_id', read_only=True)
     society_name = serializers.CharField(source='society.society_name', read_only=True)
     role_name = serializers.CharField(source='role.role_name', read_only=True)
+    role_id = serializers.CharField(source='role.role_id', read_only=True)
     flat_number = serializers.SerializerMethodField()
     block_name = serializers.SerializerMethodField()
+    block_id = serializers.SerializerMethodField()
     occupancy_type = serializers.SerializerMethodField()
     is_primary = serializers.SerializerMethodField()
     move_in_date = serializers.SerializerMethodField()
     has_nominee = serializers.SerializerMethodField()
     has_security = serializers.SerializerMethodField()
+    has_block_secretary = serializers.SerializerMethodField()
 
     user_name = serializers.CharField(
         max_length=100,
@@ -115,14 +120,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'user_email',
             'society_id',
             'society_name',
+            'role_id',
             'role_name',
             'flat_number',
             'block_name',
+            'block_id',
             'occupancy_type',
             'is_primary',
             'move_in_date',
             'has_nominee',
             'has_security',
+            'has_block_secretary',
         ]
         read_only_fields = ['user_id', 'user_phone', 'society_id']
 
@@ -133,6 +141,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_block_name(self, obj):
         resident = Resident.objects.filter(user=obj).first()
         return resident.flat.block.block_name if (resident and resident.flat and resident.flat.block) else None
+
+    def get_block_id(self, obj):
+        resident = Resident.objects.filter(user=obj).first()
+        return resident.flat.block.block_id if (resident and resident.flat and resident.flat.block) else None
 
     def get_occupancy_type(self, obj):
         occ = Occupancy.objects.filter(resident__user=obj).first()
@@ -158,6 +170,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         config = SocietyFeatures.objects.filter(society=obj.society).first()
         return config.has_security if (config and config.has_security is not None) else True
 
+    def get_has_block_secretary(self, obj):
+        if not obj.society:
+            return False
+        config = SocietyFeatures.objects.filter(society=obj.society).first()
+        return config.has_block_secretary if (config and config.has_block_secretary is not None) else False
 
 # 2. Change Password Serializer
 class ChangePasswordSerializer(serializers.Serializer):

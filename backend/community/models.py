@@ -138,3 +138,35 @@ class Tenant(models.Model):
 
     def __str__(self):
         return f"{self.tenant_id} - Flat {self.flat_id} ({self.status})"
+
+class SocietyDocument(models.Model):
+    document_id = models.CharField(primary_key=True, max_length=10)
+    society = models.ForeignKey('core_api.Societies', models.DO_NOTHING, db_column='society_id')
+    title = models.CharField(max_length=150)
+    document_type = models.CharField(max_length=50)  # e.g., 'Bye-Laws', 'NOC Template', 'Circular', 'Meeting Minutes'
+    file_url = models.CharField(max_length=500)
+    uploaded_by = models.ForeignKey('core_api.Users', models.DO_NOTHING, db_column='uploaded_by')
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        managed = False
+        db_table = 'society_document'
+        verbose_name = 'Society Document'
+        verbose_name_plural = 'Society Documents'
+
+    def __str__(self):
+        return f"{self.title} ({self.document_type})"
+
+class DocumentAuditLog(models.Model):
+    log_id = models.AutoField(primary_key=True)
+    document = models.ForeignKey(SocietyDocument, models.DO_NOTHING, db_column='document_id')
+    action = models.CharField(max_length=20)  # 'UPLOAD', 'DELETE', 'VIEW'
+    performed_by = models.ForeignKey('core_api.Users', models.DO_NOTHING, db_column='performed_by')
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        managed = False
+        db_table = 'document_audit_log'
+        verbose_name = 'Document Audit Log'
+        verbose_name_plural = 'Document Audit Logs'

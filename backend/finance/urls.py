@@ -7,7 +7,8 @@ from .views import (
     ChairmanFinancialSummaryView,
     GenerateMaintenanceBillsView,
     SocietyExecutiveReportView,
-    SocietyIncomeView
+    SocietyIncomeView,
+    BlockMaintenanceReportView
 )
 
 urlpatterns = [
@@ -19,4 +20,5 @@ urlpatterns = [
     path('income/', SocietyIncomeView.as_view(), name='society-income'),
     path('summary/', ChairmanFinancialSummaryView.as_view(), name='financial-summary'),
     path('executive-report/', SocietyExecutiveReportView.as_view(), name='executive-report'),
+    path('block-report/', BlockMaintenanceReportView.as_view(), name='block-maintenance-report'),
 ]

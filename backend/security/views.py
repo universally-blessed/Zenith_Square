@@ -72,7 +72,7 @@ class DismissSecurityAlertView(APIView):
 
     def patch(self, request, alert_id):
         role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin', 'security']:
+        if role_name not in ['chairman', 'admin', 'security']:
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         alert = SecurityAlerts.objects.filter(alert_id=alert_id, triggered_by__society=request.user.society).first()
