@@ -675,7 +675,7 @@ class _VisitorsTabState extends State<_VisitorsTab> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    'Purpose: ${log['purpose'] ?? 'General'}\nContact: ${log['visitor_phone'] ?? 'N/A'}\nGate Entry: $entryDate at $entryTime',
+                    'Destination: ${(log['society_name'] != null && log['society_name'].toString().isNotEmpty) ? log['society_name'] : 'Serene Heights'} • Flat ${log['flat_number'] ?? ''}\nPurpose: ${log['purpose'] ?? 'General'} • Contact: ${log['visitor_phone'] ?? 'N/A'}\nGate Entry: $entryDate at $entryTime',
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
                   ),
                   isThreeLine: true,

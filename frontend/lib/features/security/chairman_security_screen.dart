@@ -762,8 +762,11 @@ class _ChairmanVisitorAuditTabState extends State<_ChairmanVisitorAuditTab> {
                     final exitTime = hasExited
                         ? log['exit_time'].toString().substring(11, 16)
                         : null;
+                    final socName = (log['society_name'] != null && log['society_name'].toString().isNotEmpty)
+                        ? log['society_name'].toString()
+                        : 'Serene Heights';
                     final flatStr =
-                        '${log['block_name'] ?? ''} - ${log['flat_number'] ?? ''}';
+                        '$socName • ${log['block_name'] ?? ''} - ${log['flat_number'] ?? ''}';
                     final guard = log['recorded_by_name'] ?? 'Gate Guard';
 
                     return Card(

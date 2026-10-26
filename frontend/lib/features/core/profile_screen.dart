@@ -98,9 +98,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final roleName = (_profile?['role_name'] ?? '').toString();
+    final isGuard = roleName.toLowerCase().contains('guard') ||
+        roleName.toLowerCase().contains('security');
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile'),
+        title: Text(isGuard ? 'Security Guard Profile' : 'My Profile'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
@@ -114,31 +118,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Resident Badges
+              // Profile Badge Card
               Card(
                 elevation: 0,
                 color: Colors.blue.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.blue.shade200),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(14.0),
                   child: Row(
                     children: [
-                      const Icon(Icons.verified_user, color: Colors.blueAccent),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isGuard ? Icons.shield_outlined : Icons.verified_user,
+                          color: Colors.blue.shade900,
+                          size: 24,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ID: ${_profile?['user_id'] ?? 'N/A'}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '${_profile?['society_name']} | ${_profile?['flat_number']}',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 13,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'ID: ${_profile?['user_id'] ?? 'N/A'}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade900,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isGuard
+                                        ? Colors.green.shade100
+                                        : Colors.blue.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    isGuard
+                                        ? 'Security Guard'
+                                        : (_profile?['role_name'] ?? 'Resident'),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isGuard
+                                          ? Colors.green.shade900
+                                          : Colors.blue.shade900,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              isGuard
+                                  ? '${_profile?['society_name'] ?? 'Serene Heights'} • Main Entrance Gate'
+                                  : '${_profile?['society_name']} | ${_profile?['flat_number']}',
+                              style: TextStyle(
+                                color: Colors.blueGrey.shade800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -184,19 +239,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : null,
               ),
               const SizedBox(height: 16),
-              // Move-in Date Picker
-              TextFormField(
-                controller: _moveInDateController,
-                readOnly: true,
-                onTap: _pickMoveInDate,
-                decoration: const InputDecoration(
-                  labelText: 'Move-in Date',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
-                  suffixIcon: Icon(Icons.edit_calendar_outlined),
-                  border: OutlineInputBorder(),
+
+              // Role specific detail
+              if (isGuard) ...[
+                TextFormField(
+                  initialValue: 'Main Entrance Gate (Live Duty)',
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Assigned Security Post',
+                    prefixIcon: Icon(Icons.security_outlined),
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ] else ...[
+                // Move-in Date Picker for Residents
+                TextFormField(
+                  controller: _moveInDateController,
+                  readOnly: true,
+                  onTap: _pickMoveInDate,
+                  decoration: const InputDecoration(
+                    labelText: 'Move-in Date',
+                    prefixIcon: Icon(Icons.calendar_today_outlined),
+                    suffixIcon: Icon(Icons.edit_calendar_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               ElevatedButton(
                 onPressed: _isSaving ? null : _updateProfile,
@@ -217,7 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 8),
 
               // Quick Actions
-              if (_profile?['has_nominee'] == true) ...[
+              if (!isGuard && _profile?['has_nominee'] == true) ...[
                 ListTile(
                   leading: const Icon(Icons.badge_outlined, color: Colors.blue),
                   title: const Text('Nominee Management'),

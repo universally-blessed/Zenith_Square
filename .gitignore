@@ -5,3 +5,7 @@
 .flutter-plugins
 .flutter-plugins-dependencies
 build/
+
+__pycache__/
+*.pyc
+*.dump

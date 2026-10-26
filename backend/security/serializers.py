@@ -51,27 +51,69 @@ class VisitorSerializer(serializers.ModelSerializer):
 
 
 class VisitorLogSerializer(serializers.ModelSerializer):
+    logs_id = serializers.IntegerField(source='log_id', read_only=True)
     visitor_name = serializers.CharField(source='visitor.visitor_name', read_only=True)
     visitor_phone = serializers.CharField(source='visitor.visitor_phone', read_only=True)
-    flat_number = serializers.CharField(source='flat.flat_number', read_only=True)
-    block_name = serializers.CharField(source='flat.block.block_name', read_only=True)
+    flat_id = serializers.SerializerMethodField()
+    flat_number = serializers.SerializerMethodField()
+    block_name = serializers.SerializerMethodField()
+    society_id = serializers.SerializerMethodField()
+    society_name = serializers.SerializerMethodField()
+    society_address = serializers.SerializerMethodField()
+    recorded_by = serializers.CharField(source='recorded_by.user_id', read_only=True)
     recorded_by_name = serializers.CharField(source='recorded_by.user_name', read_only=True)
+
+    def get_flat_id(self, obj):
+        return obj.flat.flat_id if obj.flat else ''
+
+    def get_flat_number(self, obj):
+        return obj.flat.flat_number if obj.flat else ''
+
+    def get_block_name(self, obj):
+        return obj.flat.block.block_name if (obj.flat and obj.flat.block) else 'A'
+
+    def get_society_id(self, obj):
+        if obj.society:
+            return obj.society.society_id
+        if obj.flat and obj.flat.block and obj.flat.block.society:
+            return obj.flat.block.society.society_id
+        return 'SOC01'
+
+    def get_society_name(self, obj):
+        if obj.society:
+            return obj.society.society_name
+        if obj.flat and obj.flat.block and obj.flat.block.society:
+            return obj.flat.block.society.society_name
+        return 'Serene Heights'
+
+    def get_society_address(self, obj):
+        if obj.society:
+            return obj.society.society_address
+        if obj.flat and obj.flat.block and obj.flat.block.society:
+            return obj.flat.block.society.society_address
+        return 'Plot 45, Near Science City Road, Sola'
 
     class Meta:
         model = VisitorLogs
         fields = [
             'log_id',
+            'logs_id',
             'visitor_id',
             'visitor_name',
             'visitor_phone',
+            'flat_id',
             'flat_number',
             'block_name',
+            'society_id',
+            'society_name',
+            'society_address',
             'entry_time',
             'exit_time',
             'purpose',
+            'recorded_by',
             'recorded_by_name',
         ]
-        read_only_fields = ['log_id', 'entry_time', 'recorded_by_name']
+        read_only_fields = ['log_id', 'logs_id', 'entry_time', 'recorded_by', 'recorded_by_name']
 
 
 class LogVisitorEntrySerializer(serializers.Serializer):

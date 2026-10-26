@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from core_api.models import Resident, Flats,SocietyFeatures
 from .models import SecurityAlerts, Visitor, VisitorLogs
@@ -66,13 +66,17 @@ class ActiveSecurityAlertsView(APIView):
             'alerts': SecurityAlertSerializer(alerts, many=True).data
         }, status=status.HTTP_200_OK)
 
+def is_security_or_management(user):
+    role_name = user.role.role_name.lower() if user.role else ''
+    return role_name in ['chairman', 'secretary', 'admin', 'security', 'security guard', 'guard'] or 'security' in role_name or 'guard' in role_name
+
+
 # 3. Dismiss / Resolve Emergency Alert (Chairman / Security / Admin)
 class DismissSecurityAlertView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, alert_id):
-        role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin', 'security']:
+        if not is_security_or_management(request.user):
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         alert = SecurityAlerts.objects.filter(alert_id=alert_id, triggered_by__society=request.user.society).first()
@@ -97,10 +101,9 @@ class VisitorLogsListCreateView(APIView):
         features = SocietyFeatures.objects.filter(society=request.user.society).first()
         if features and features.has_security is False:
             return Response({'success': False, 'error': 'Security panel & visitor logs are disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
-        role_name = request.user.role.role_name.lower() if request.user.role else 'resident'
         
         # Resident sees visitors to their own flat; Chairman/Security sees all society visitors
-        if role_name in ['chairman', 'secretary', 'admin', 'security']:
+        if is_security_or_management(request.user):
             logs = VisitorLogs.objects.filter(flat__block__society=request.user.society).order_by('-entry_time')
         else:
             resident = Resident.objects.filter(user=request.user).first()
@@ -115,8 +118,7 @@ class VisitorLogsListCreateView(APIView):
 
     def post(self, request):
         # Only Gate Security, Chairman, or Admin log physical visitor entry
-        role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['security', 'chairman', 'secretary', 'admin']:
+        if not is_security_or_management(request.user):
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = LogVisitorEntrySerializer(data=request.data)
@@ -129,20 +131,31 @@ class VisitorLogsListCreateView(APIView):
         if not flat_obj:
             return Response({'success': False, 'error': 'Invalid flat destination.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Get or create visitor entry
-        visitor, _ = Visitor.objects.get_or_create(
-            visitor_phone=data['visitor_phone'],
-            defaults={
-                'visitor_id': str(uuid.uuid4())[:5].upper(),
-                'visitor_name': data['visitor_name'],
-            }
-        )
+        # Get or create visitor entry in visitor table
+        phone = data['visitor_phone'].strip()
+        visitor = Visitor.objects.filter(visitor_phone=phone).first()
+        if not visitor:
+            vid = str(uuid.uuid4())[:5].upper()
+            while Visitor.objects.filter(visitor_id=vid).exists():
+                vid = str(uuid.uuid4())[:5].upper()
+            visitor = Visitor.objects.create(
+                visitor_id=vid,
+                visitor_name=data['visitor_name'].strip(),
+                visitor_phone=phone,
+            )
+        else:
+            if data['visitor_name'] and visitor.visitor_name != data['visitor_name'].strip():
+                visitor.visitor_name = data['visitor_name'].strip()
+                visitor.save()
 
+        # Create entry in visitor_logs table with society explicitly stored
+        society_obj = flat_obj.block.society if (flat_obj and flat_obj.block) else request.user.society
         log = VisitorLogs.objects.create(
             visitor=visitor,
             flat=flat_obj,
+            society=society_obj,
             entry_time=timezone.now(),
-            purpose=data['purpose'],
+            purpose=data['purpose'].strip(),
             recorded_by=request.user
         )
 
@@ -158,8 +171,7 @@ class LogVisitorExitView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, log_id):
-        role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['security', 'chairman', 'secretary', 'admin']:
+        if not is_security_or_management(request.user):
             return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         log = VisitorLogs.objects.filter(log_id=log_id, flat__block__society=request.user.society).first()
@@ -173,4 +185,69 @@ class LogVisitorExitView(APIView):
             'success': True,
             'message': 'Visitor exit timestamp recorded.',
             'log': VisitorLogSerializer(log).data
+        }, status=status.HTTP_200_OK)
+
+
+# 6. Lookup Visitor by Phone
+class VisitorLookupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        phone = request.query_params.get('phone', '').strip()
+        if not phone or len(phone) < 10:
+            return Response({'success': True, 'found': False}, status=status.HTTP_200_OK)
+
+        visitor = Visitor.objects.filter(visitor_phone=phone).first()
+        if visitor:
+            return Response({
+                'success': True,
+                'found': True,
+                'visitor': {
+                    'visitor_id': visitor.visitor_id,
+                    'visitor_name': visitor.visitor_name,
+                    'visitor_phone': visitor.visitor_phone,
+                }
+            }, status=status.HTTP_200_OK)
+        return Response({'success': True, 'found': False}, status=status.HTTP_200_OK)
+
+
+# 7. Flats Dropdown for Security Gate
+class SecurityFlatsDropdownView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from core_api.models import Societies
+        society = getattr(request.user, 'society', None) if request.user and request.user.is_authenticated else None
+        if not society:
+            society = Societies.objects.filter(society_id='SOC01').first() or Societies.objects.first()
+        society_name = society.society_name if society else 'Serene Heights'
+
+        flats = Flats.objects.filter(
+            block__society=society
+        ).select_related('block', 'block__society')
+
+        def sort_key(f):
+            b_name = f.block.block_name if f.block else 'A'
+            try:
+                num = int(''.join(filter(str.isdigit, str(f.flat_number))))
+            except (ValueError, TypeError):
+                num = 999999
+            return (b_name, num)
+
+        sorted_flats = sorted(flats, key=sort_key)
+
+        flats_data = [
+            {
+                'flat_id': f.flat_id,
+                'flat_number': f.flat_number,
+                'block_name': f.block.block_name if f.block else 'A',
+                'society_name': society_name,
+                'display_label': f"Flat {f.flat_number} - Block {f.block.block_name if f.block else 'A'} ({society_name})"
+            }
+            for f in sorted_flats
+        ]
+        return Response({
+            'success': True,
+            'society_name': society_name,
+            'flats': flats_data
         }, status=status.HTTP_200_OK)
