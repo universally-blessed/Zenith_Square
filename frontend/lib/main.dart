@@ -7,16 +7,9 @@ import './features/core/register_screen.dart';
 import './features/core/login_screen.dart';
 import './features/core/home_screen.dart';
 import './features/core/chairman_screen.dart';
-<<<<<<< HEAD
 import './features/core/treasurer_screen.dart';
-=======
-<<<<<<< HEAD
 import './features/core/secretary_screen.dart';
-import 'features/core/block_secretary_screen.dart';
-=======
-import './features/core/treasurer_screen.dart';
->>>>>>> 86843ea (completed the treasure and security pannel)
->>>>>>> backup-work
+import './features/core/block_secretary_screen.dart';
 import './features/core/forgot_password.dart';
 import './features/core/profile_screen.dart';
 import './features/core/nominee_screen.dart';
@@ -127,9 +120,6 @@ class MyApp extends StatelessWidget {
         '/chairman-reports': (context) => const SocietyReportsScreen(),
         '/treasurer-home': (context) => const TreasurerHomeScreen(),
         '/treasurer-finance': (context) => const TreasurerFinanceScreen(),
-<<<<<<< HEAD
-=======
-
         '/secretary-home': (context) => const SecretaryHomeScreen(),
         '/secretary-notices': (context) => const SecretaryNoticesScreen(),
         '/secretary-members': (context) => const SecretaryDirectoryScreen(),
@@ -154,7 +144,6 @@ class MyApp extends StatelessWidget {
         '/block-secretary-finance': (context) =>
             const BlockSecretaryFinanceScreen(),
         '/block-secretary-security': (context) => const SecurityScreen(),
->>>>>>> backup-work
 
         '/security-home': (context) => const SecurityGuardHomeScreen(),
         '/security-guard-desk': (context) => const SecurityGuardDeskScreen(),

@@ -200,24 +200,11 @@ class FinanceApiService {
     }
   }
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-  static Future<Map<String, dynamic>> fetchBlockReport() async {
-    final token = await ApiService.getAccessToken();
-    final res = await http.get(
-      Uri.parse('$baseUrl/block-report/'),
-=======
->>>>>>> backup-work
   // 9. Treasurer & Chairman: Fetch All Maintenance Bills
   static Future<List<dynamic>> fetchAllBills() async {
     final token = await ApiService.getAccessToken();
     final res = await http.get(
       Uri.parse('$baseUrl/bills/all/'),
-<<<<<<< HEAD
-=======
->>>>>>> 86843ea (completed the treasure and security pannel)
->>>>>>> backup-work
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -225,14 +212,6 @@ class FinanceApiService {
     );
     final data = jsonDecode(res.body);
     if (res.statusCode == 200 && data['success'] == true) {
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-      return data;
-    } else {
-      throw Exception(data['error'] ?? 'Failed to load block report');
-=======
->>>>>>> backup-work
       return data['bills'] ?? [];
     } else {
       throw Exception(data['error'] ?? 'Failed to load maintenance bills');
@@ -322,10 +301,24 @@ class FinanceApiService {
       return data['bank_details'] ?? {};
     } else {
       throw Exception(data['error'] ?? 'Failed to load bank details');
-<<<<<<< HEAD
-=======
->>>>>>> 86843ea (completed the treasure and security pannel)
->>>>>>> backup-work
+    }
+  }
+
+  // 14. Block Secretary: Fetch Block Maintenance Report
+  static Future<Map<String, dynamic>> fetchBlockReport() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/block-report/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load block report');
     }
   }
 }
