@@ -62,6 +62,28 @@ class VisitorLogSerializer(serializers.ModelSerializer):
     society_address = serializers.SerializerMethodField()
     recorded_by = serializers.CharField(source='recorded_by.user_id', read_only=True)
     recorded_by_name = serializers.CharField(source='recorded_by.user_name', read_only=True)
+    resident_name = serializers.SerializerMethodField()
+    resident_phone = serializers.SerializerMethodField()
+
+    def get_resident_name(self, obj):
+        if not obj.flat:
+            return ''
+        from core_api.models import Resident, Occupancy
+        primary_occ = Occupancy.objects.filter(flat=obj.flat, is_primary=True).select_related('resident__user').first()
+        if primary_occ and primary_occ.resident and primary_occ.resident.user:
+            return primary_occ.resident.user.user_name
+        res = Resident.objects.filter(flat=obj.flat, user__isnull=False).order_by('-move_in_date', '-resident_id').first()
+        return res.user.user_name if (res and res.user) else ''
+
+    def get_resident_phone(self, obj):
+        if not obj.flat:
+            return ''
+        from core_api.models import Resident, Occupancy
+        primary_occ = Occupancy.objects.filter(flat=obj.flat, is_primary=True).select_related('resident__user').first()
+        if primary_occ and primary_occ.resident and primary_occ.resident.user:
+            return primary_occ.resident.user.user_phone
+        res = Resident.objects.filter(flat=obj.flat, user__isnull=False).order_by('-move_in_date', '-resident_id').first()
+        return res.user.user_phone if (res and res.user) else ''
 
     def get_flat_id(self, obj):
         return obj.flat.flat_id if obj.flat else ''
@@ -104,6 +126,8 @@ class VisitorLogSerializer(serializers.ModelSerializer):
             'flat_id',
             'flat_number',
             'block_name',
+            'resident_name',
+            'resident_phone',
             'society_id',
             'society_name',
             'society_address',

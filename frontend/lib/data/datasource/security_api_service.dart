@@ -177,7 +177,7 @@ class SecurityApiService {
     for (final block in ['A', 'B']) {
       for (int floor = 1; floor <= 10; floor++) {
         for (int unit = 1; unit <= 4; unit++) {
-          final flatNum = '${floor}${unit.toString().padLeft(2, '0')}';
+          final flatNum = '$floor${unit.toString().padLeft(2, '0')}';
           final flatIndex = fallback.length + 1;
           final flatId = 'F${flatIndex.toString().padLeft(4, '0')}';
           fallback.add({
@@ -191,5 +191,28 @@ class SecurityApiService {
       }
     }
     return fallback;
+  }
+
+  // 9. Fetch All Resident Vehicles in Society (GET /facilities/vehicles/?all=true)
+  static Future<List<dynamic>> fetchSocietyVehicles() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('http://127.0.0.1:8000/api/facilities/vehicles/?all=true'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      if (data is List) return data;
+      if (data is Map && (data['success'] == true || data.containsKey('vehicles'))) {
+        return data['vehicles'] ?? [];
+      }
+      return [];
+    } else {
+      final err = data is Map ? (data['error'] ?? data['detail']) : null;
+      throw Exception(err ?? 'Failed to load resident vehicles');
+    }
   }
 }

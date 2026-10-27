@@ -1,5 +1,6 @@
 import uuid
 from django.utils import timezone
+from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -68,10 +69,10 @@ class ActiveSecurityAlertsView(APIView):
 
 def is_security_or_management(user):
     role_name = user.role.role_name.lower() if user.role else ''
-    return role_name in ['chairman', 'secretary', 'admin', 'security', 'security guard', 'guard'] or 'security' in role_name or 'guard' in role_name
+    return role_name in ['chairman', 'secretary', 'admin', 'security', 'security guard', 'guard', 'treasurer'] or 'security' in role_name or 'guard' in role_name
 
 
-# 3. Dismiss / Resolve Emergency Alert (Chairman / Security / Admin)
+# 3. Dismiss / Resolve Emergency Alert (Chairman / Security / Admin / Treasurer)
 class DismissSecurityAlertView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -102,14 +103,26 @@ class VisitorLogsListCreateView(APIView):
         if features and features.has_security is False:
             return Response({'success': False, 'error': 'Security panel & visitor logs are disabled for your society.'}, status=status.HTTP_403_FORBIDDEN)
         
-        # Resident sees visitors to their own flat; Chairman/Security sees all society visitors
-        if is_security_or_management(request.user):
-            logs = VisitorLogs.objects.filter(flat__block__society=request.user.society).order_by('-entry_time')
+        society = request.user.society
+        scope = request.query_params.get('scope', 'all')
+        
+        # Committee members (Chairman, Secretary, Treasurer, Admin, Guard) always see all society gate visitors
+        # In Emergency SOS / Gate logs, users can view all society gate visitors or filter by my_unit
+        if is_security_or_management(request.user) or scope == 'all':
+            logs = VisitorLogs.objects.filter(
+                Q(flat__block__society=society) | Q(society=society)
+            ).order_by('-entry_time')
         else:
             resident = Resident.objects.filter(user=request.user).first()
             if not resident or not resident.flat:
-                return Response({'success': True, 'logs': []}, status=status.HTTP_200_OK)
-            logs = VisitorLogs.objects.filter(flat=resident.flat).order_by('-entry_time')
+                logs = VisitorLogs.objects.filter(
+                    Q(flat__block__society=society) | Q(society=society)
+                ).order_by('-entry_time')
+            else:
+                flat_logs = VisitorLogs.objects.filter(flat=resident.flat).order_by('-entry_time')
+                logs = flat_logs if flat_logs.exists() else VisitorLogs.objects.filter(
+                    Q(flat__block__society=society) | Q(society=society)
+                ).order_by('-entry_time')
 
         return Response({
             'success': True,

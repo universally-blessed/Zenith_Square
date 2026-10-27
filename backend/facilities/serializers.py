@@ -210,6 +210,8 @@ class AssetMaintenanceSerializer(serializers.ModelSerializer):
 class VehicleSerializer(serializers.ModelSerializer):
     resident_name = serializers.CharField(source='resident.user.user_name', read_only=True)
     flat_number = serializers.CharField(source='resident.flat.flat_number', read_only=True)
+    block_name = serializers.CharField(source='resident.flat.block.block_name', read_only=True, default='')
+    resident_phone = serializers.CharField(source='resident.user.user_phone', read_only=True, default='')
     vehicle_number = serializers.CharField(
         max_length=20,
         min_length=6,
@@ -239,6 +241,8 @@ class VehicleSerializer(serializers.ModelSerializer):
             'vehicle_id',
             'resident_name',
             'flat_number',
+            'block_name',
+            'resident_phone',
             'vehicle_number',
             'vehicle_type',
             'vehicle_allotment_number',

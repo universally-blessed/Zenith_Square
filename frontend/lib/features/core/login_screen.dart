@@ -39,6 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
         String targetRoute = '/home';
         if (role == 'chairman') {
           targetRoute = '/chairman-home';
+        } else if (role == 'treasurer') {
+          targetRoute = '/treasurer-home';
         } else if (role.contains('security') || role.contains('guard')) {
           targetRoute = '/security-home';
         }

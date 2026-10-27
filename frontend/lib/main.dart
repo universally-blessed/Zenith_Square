@@ -4,12 +4,14 @@ import './features/core/register_screen.dart';
 import './features/core/login_screen.dart';
 import './features/core/home_screen.dart';
 import './features/core/chairman_screen.dart';
+import './features/core/treasurer_screen.dart';
 import './features/core/forgot_password.dart';
 import './features/core/profile_screen.dart';
 import './features/core/nominee_screen.dart';
 import './features/core/change_password_screen.dart';
 import './features/finance/finance_screen.dart';
 import './features/finance/chairman_finance_screen.dart';
+import './features/finance/treasurer_finance_screen.dart';
 import './features/helpdesk/complaints_screen.dart';
 import './features/helpdesk/chairman_complaints_screen.dart';
 import './features/communication/notices_screen.dart';
@@ -107,6 +109,8 @@ class MyApp extends StatelessWidget {
         '/chairman-security': (context) => const ChairmanSecurityScreen(),
         '/chairman-tenants': (context) => const TenantListScreen(),
         '/chairman-reports': (context) => const SocietyReportsScreen(),
+        '/treasurer-home': (context) => const TreasurerHomeScreen(),
+        '/treasurer-finance': (context) => const TreasurerFinanceScreen(),
 
         '/security-home': (context) => const SecurityGuardHomeScreen(),
         '/security-guard-desk': (context) => const SecurityGuardDeskScreen(),

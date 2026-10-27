@@ -136,13 +136,20 @@ class FinanceApiService {
         'Authorization': 'Bearer $token',
       },
     );
-    final data = jsonDecode(res.body);
-    if (res.statusCode == 200 && data['success'] == true) {
-      return data;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      if (data['success'] == true) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to load financial report');
+      }
     } else {
-      throw Exception(
-        data['error'] ?? 'Failed to load society executive report',
-      );
+      try {
+        final data = jsonDecode(res.body);
+        throw Exception(data['error'] ?? 'Server returned error (${res.statusCode})');
+      } catch (_) {
+        throw Exception('Server error (${res.statusCode}). Please try again.');
+      }
     }
   }
 
@@ -192,4 +199,109 @@ class FinanceApiService {
       throw Exception(data['error'] ?? 'Failed to record income');
     }
   }
+
+  // 9. Treasurer & Chairman: Fetch All Maintenance Bills
+  static Future<List<dynamic>> fetchAllBills() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/bills/all/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['bills'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load maintenance bills');
+    }
+  }
+
+  // 10. Generate Monthly Bills for All Flats
+  static Future<Map<String, dynamic>> generateBills({
+    String? billMonth,
+    String? dueDate,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/bills/generate/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        if (billMonth != null) 'bill_month': billMonth,
+        if (dueDate != null) 'due_date': dueDate,
+      }),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 201 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to generate bills');
+    }
+  }
+
+  // 11. Record Offline Payment (Cash / Cheque / Bank Transfer)
+  static Future<Map<String, dynamic>> recordOfflinePayment({
+    required String billId,
+    required String paymentMethod,
+  }) async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/payment/offline/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'bill_id': billId,
+        'payment_method': paymentMethod,
+      }),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 201 && data['success'] == true) {
+      return data;
+    } else {
+      throw Exception(data['error'] ?? 'Failed to record offline payment');
+    }
+  }
+
+  // 12. Fetch All Society Payment Receipts
+  static Future<List<dynamic>> fetchAllReceipts() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/receipts/all/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['receipts'] ?? [];
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load receipts');
+    }
+  }
+
+  // 13. Fetch Society Bank Details
+  static Future<Map<String, dynamic>> fetchBankDetails() async {
+    final token = await ApiService.getAccessToken();
+    final res = await http.get(
+      Uri.parse('$baseUrl/bank-details/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode == 200 && data['success'] == true) {
+      return data['bank_details'] ?? {};
+    } else {
+      throw Exception(data['error'] ?? 'Failed to load bank details');
+    }
+  }
 }
+

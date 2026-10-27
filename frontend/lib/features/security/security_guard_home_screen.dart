@@ -665,6 +665,12 @@ class _SecurityGuardHomeScreenState extends State<SecurityGuardHomeScreen> {
                     Colors.red.shade700,
                     () => _openDesk(initialTab: 0),
                   ),
+                  _ActionItem(
+                    'Resident Vehicles',
+                    Icons.directions_car_outlined,
+                    Colors.indigo.shade700,
+                    () => _openDesk(initialTab: 2),
+                  ),
                 ]),
 
                 const SizedBox(height: 18),

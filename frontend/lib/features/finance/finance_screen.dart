@@ -1,3 +1,4 @@
+import './widgets/financial_document_helper.dart';
 import 'package:flutter/material.dart';
 import '../../data/datasource/finance_api_service.dart';
 
@@ -382,25 +383,99 @@ class _PaymentHistoryTabState extends State<_PaymentHistoryTab> {
                 side: BorderSide(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Colors.greenAccent,
-                  child: Icon(Icons.check, color: Colors.green),
-                ),
-                title: Text(
-                  '${item['bill_month'] ?? 'Maintenance'} - ₹${item['amount']}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Receipt: ${item['receipt_number']}\nMethod: ${item['payment_method']}',
-                ),
-                isThreeLine: true,
-                trailing: Text(
-                  item['payment_date'] != null
-                      ? item['payment_date'].toString().substring(0, 10)
-                      : '',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.greenAccent,
+                      child: Icon(Icons.check, color: Colors.green),
+                    ),
+                    title: Text(
+                      '${item['bill_month'] ?? 'Maintenance'} - ₹${item['amount']}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      'Receipt: ${item['receipt_number'] ?? 'N/A'}\nMethod: ${item['payment_method'] ?? 'Online'}',
+                    ),
+                    isThreeLine: true,
+                    trailing: Text(
+                      item['payment_date'] != null
+                          ? item['payment_date'].toString().substring(0, 10)
+                          : '',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 14, right: 14, bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            foregroundColor: Colors.green.shade800,
+                            side: BorderSide(color: Colors.green.shade200),
+                          ),
+                          icon: const Icon(Icons.visibility_outlined, size: 14),
+                          label: const Text('View Receipt', style: TextStyle(fontSize: 12)),
+                          onPressed: () {
+                            final amt = (item['amount'] is num ? item['amount'] : double.tryParse(item['amount'].toString()) ?? 0.0).toDouble();
+                            final doc = FinancialDocument(
+                              type: FinancialDocumentType.paymentReceipt,
+                              docNumber: item['receipt_number'] ?? 'REC-${item['receipt_id'] ?? ''}',
+                              title: 'MAINTENANCE PAYMENT RECEIPT',
+                              societyName: 'Zenith Square Co-Op Housing Society Ltd.',
+                              categoryOrHead: 'Maintenance Charges (${item['bill_month'] ?? 'Monthly'})',
+                              amount: amt,
+                              date: item['payment_date'] != null ? item['payment_date'].toString().substring(0, 10) : (item['generated_at'] ?? ''),
+                              status: 'COMPLETED & VERIFIED',
+                              payerOrPayee: 'Resident Unit',
+                              paymentMethod: item['payment_method'] ?? 'ONLINE',
+                              extraDetails: {
+                                'Receipt Number': item['receipt_number'] ?? '',
+                                'Billing Cycle': item['bill_month'] ?? '',
+                              },
+                            );
+                            FinancialDocumentHelper.viewDocument(context, doc);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                          label: const Text('Download PDF', style: TextStyle(fontSize: 12)),
+                          onPressed: () {
+                            final amt = (item['amount'] is num ? item['amount'] : double.tryParse(item['amount'].toString()) ?? 0.0).toDouble();
+                            final doc = FinancialDocument(
+                              type: FinancialDocumentType.paymentReceipt,
+                              docNumber: item['receipt_number'] ?? 'REC-${item['receipt_id'] ?? ''}',
+                              title: 'MAINTENANCE PAYMENT RECEIPT',
+                              societyName: 'Zenith Square Co-Op Housing Society Ltd.',
+                              categoryOrHead: 'Maintenance Charges (${item['bill_month'] ?? 'Monthly'})',
+                              amount: amt,
+                              date: item['payment_date'] != null ? item['payment_date'].toString().substring(0, 10) : (item['generated_at'] ?? ''),
+                              status: 'COMPLETED & VERIFIED',
+                              payerOrPayee: 'Resident Unit',
+                              paymentMethod: item['payment_method'] ?? 'ONLINE',
+                              extraDetails: {
+                                'Receipt Number': item['receipt_number'] ?? '',
+                                'Billing Cycle': item['bill_month'] ?? '',
+                              },
+                            );
+                            FinancialDocumentHelper.downloadDocument(context, doc);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             );
           },
