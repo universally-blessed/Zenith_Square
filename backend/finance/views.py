@@ -4,19 +4,19 @@ from datetime import datetime, date,timedelta
 from decimal import Decimal
 import calendar
 from django.db import transaction
-from django.db.models import Sum, Count,Q
+from django.db.models import Sum, Count, Q, Avg
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from core_api.models import Resident, Occupancy, Flats
-from .models import MaintenanceBill, Payment, PaymentReceipt, SocietyExpenses,SocietyIncome
-from facilities.models import AssetMaintenance, AmenityBooking
+from core_api.models import Resident, Occupancy, Flats, Blocks, Nominee, Users
+from .models import MaintenanceBill, Payment, PaymentReceipt, SocietyExpenses, SocietyIncome
+from facilities.models import AssetMaintenance, AmenityBooking, Amenity, Vehicle, Asset
 from security.models import VisitorLogs, SecurityAlerts
 from community.models import Tenant, PollsResponse
-from helpdesk.models import Complaint
+from helpdesk.models import Complaint, Feedback
 from .serializers import (
     MaintenanceBillSerializer, 
     PaymentReceiptSerializer, 
@@ -421,7 +421,159 @@ class SocietyExecutiveReportView(APIView):
             society=society
         ).values('income_type').annotate(total=Sum('amount')).order_by('-total')
 
-        # Current month breakdowns
+        # 4. OCCUPANCY & RESIDENTS REPORT
+        vacant_flats_count = max(0, total_flats_count - total_assigned_flats)
+        occupancy_rate = round((total_assigned_flats / total_flats_count * 100), 1) if total_flats_count > 0 else 0.0
+        owner_occupants = Occupancy.objects.filter(flat__block__society=society, occupancy_type__iexact='Owner').count()
+        tenant_occupants = Occupancy.objects.filter(flat__block__society=society, occupancy_type__iexact='Tenant').count()
+        total_registered_residents = Resident.objects.filter(flat__block__society=society).count()
+        total_nominees = Nominee.objects.filter(resident__flat__block__society=society).count()
+
+        blocks_summary = []
+        for b in Blocks.objects.filter(society=society):
+            b_total = Flats.objects.filter(block=b).count()
+            b_occ = Flats.objects.filter(block=b, flat_id__in=assigned_flat_ids).count()
+            b_vac = max(0, b_total - b_occ)
+            b_rate = round((b_occ / b_total * 100), 1) if b_total > 0 else 0.0
+            blocks_summary.append({
+                'block_id': b.block_id,
+                'block_name': b.block_name,
+                'total_flats': b_total,
+                'occupied_flats': b_occ,
+                'vacant_flats': b_vac,
+                'occupancy_rate': b_rate,
+            })
+
+        occupancy_report = {
+            'total_flats': total_flats_count,
+            'occupied_flats': total_assigned_flats,
+            'vacant_flats': vacant_flats_count,
+            'occupancy_rate': occupancy_rate,
+            'owner_count': owner_occupants,
+            'tenant_count': tenant_occupants,
+            'total_residents': total_registered_residents,
+            'nominees_count': total_nominees,
+            'blocks_breakdown': blocks_summary,
+        }
+
+        # 5. COMPLAINTS & HELPDESK REPORT
+        comp_qs = Complaint.objects.filter(block__society=society)
+        comp_total = comp_qs.count()
+        comp_pending = comp_qs.filter(status__iexact='pending').count()
+        comp_in_progress = comp_qs.filter(status__iexact='in_progress').count()
+        comp_resolved = comp_qs.filter(status__iexact='resolved').count()
+        comp_rate = round((comp_resolved / comp_total * 100), 1) if comp_total > 0 else 100.0
+
+        avg_fb = Feedback.objects.filter(resident__flat__block__society=society).aggregate(Avg('rating'))['rating__avg']
+        fb_total = Feedback.objects.filter(resident__flat__block__society=society).count()
+
+        recent_comps = []
+        for c in comp_qs.order_by('-created_at')[:5]:
+            resident_name = c.resident.user.user_name if (c.resident and c.resident.user) else 'Resident'
+            flat_num = c.resident.flat.flat_number if (c.resident and c.resident.flat) else ''
+            recent_comps.append({
+                'complaint_id': c.complaint_id,
+                'title': c.title,
+                'status': c.status,
+                'resident': f"{resident_name} ({flat_num})" if flat_num else resident_name,
+                'created_at': c.created_at.strftime('%Y-%m-%d') if c.created_at else '',
+            })
+
+        complaints_report = {
+            'total_complaints': comp_total,
+            'pending': comp_pending,
+            'in_progress': comp_in_progress,
+            'resolved': comp_resolved,
+            'resolution_rate': comp_rate,
+            'average_rating': round(float(avg_fb or 0.0), 1),
+            'feedback_count': fb_total,
+            'recent_complaints': recent_comps,
+        }
+
+        # 6. SECURITY & VISITOR LOGS REPORT
+        week_start = today - timedelta(days=7)
+        v_total = VisitorLogs.objects.filter(society=society).count()
+        v_today = VisitorLogs.objects.filter(society=society, entry_time__date=today).count()
+        v_week = VisitorLogs.objects.filter(society=society, entry_time__date__gte=week_start).count()
+        v_month = VisitorLogs.objects.filter(society=society, entry_time__year=today.year, entry_time__month=today.month).count()
+        v_inside = VisitorLogs.objects.filter(society=society, exit_time__isnull=True).count()
+        
+        purposes = list(
+            VisitorLogs.objects.filter(society=society)
+            .values('purpose')
+            .annotate(count=Count('log_id'))
+            .order_by('-count')
+        )
+
+        active_alerts = SecurityAlerts.objects.filter(triggered_by__society=society, status__iexact='active').count()
+        total_alerts = SecurityAlerts.objects.filter(triggered_by__society=society).count()
+        alerts_by_type = list(
+            SecurityAlerts.objects.filter(triggered_by__society=society)
+            .values('alert_type')
+            .annotate(count=Count('alert_id'))
+            .order_by('-count')
+        )
+
+        security_report = {
+            'total_visitors_logged': v_total,
+            'visitors_today': v_today,
+            'visitors_this_week': v_week,
+            'visitors_this_month': v_month,
+            'currently_inside': v_inside,
+            'purpose_breakdown': [{'purpose': p['purpose'], 'count': p['count']} for p in purposes],
+            'active_alerts_count': active_alerts,
+            'total_alerts_count': total_alerts,
+            'alerts_breakdown': [{'type': a['alert_type'], 'count': a['count']} for a in alerts_by_type],
+        }
+
+        # 7. AMENITIES & FACILITIES REPORT
+        am_qs = Amenity.objects.filter(society=society)
+        am_total = am_qs.count()
+        am_avail = am_qs.filter(amenity_status__iexact='available').count()
+        am_maint = am_qs.exclude(amenity_status__iexact='available').count()
+        amenities_items = [
+            {
+                'name': a.amenity_name,
+                'location': a.amenity_location,
+                'capacity': a.amenity_capacity,
+                'status': a.amenity_status,
+            }
+            for a in am_qs
+        ]
+
+        bk_qs = AmenityBooking.objects.filter(amenity__society=society)
+        bk_total = bk_qs.count()
+        bk_confirmed = bk_qs.filter(status__in=['confirmed', 'active']).count()
+        bk_pending = bk_qs.filter(status__iexact='pending').count()
+        bk_cancelled = bk_qs.filter(status__in=['cancelled', 'expired']).count()
+        total_assets = Asset.objects.filter(society=society).count()
+
+        facilities_report = {
+            'total_amenities': am_total,
+            'available_amenities': am_avail,
+            'maintenance_amenities': am_maint,
+            'amenities_list': amenities_items,
+            'total_bookings': bk_total,
+            'confirmed_bookings': bk_confirmed,
+            'pending_bookings': bk_pending,
+            'cancelled_bookings': bk_cancelled,
+            'total_assets': total_assets,
+        }
+
+        # 8. VEHICLES & PARKING REPORT
+        veh_qs = Vehicle.objects.filter(resident__flat__block__society=society)
+        veh_total = veh_qs.count()
+        veh_2w = veh_qs.filter(vehicle_type__icontains='2').count()
+        veh_4w = veh_qs.filter(vehicle_type__icontains='4').count()
+        veh_slots = veh_qs.exclude(vehicle_allotment_number='').exclude(vehicle_allotment_number__isnull=True).count()
+
+        vehicles_report = {
+            'total_vehicles': veh_total,
+            'two_wheelers': veh_2w,
+            'four_wheelers': veh_4w,
+            'allocated_slots_count': veh_slots,
+        }
+
         cur_report = next((r for r in monthly_reports if r['is_current']), monthly_reports[-1] if monthly_reports else None)
 
         return Response({
@@ -429,6 +581,10 @@ class SocietyExecutiveReportView(APIView):
             'society': {
                 'name': society.society_name if society else 'Zenith Square Society',
                 'city': society.society_city if society else 'Ahmedabad',
+                'address': society.society_address if society else '',
+                'pincode': society.society_pincode if society else '',
+                'phone': society.society_phone if society else '',
+                'email': society.society_email if society else '',
                 'code': society.society_id if society else '',
             },
             'treasury_summary': treasury_summary,
@@ -447,7 +603,12 @@ class SocietyExecutiveReportView(APIView):
             'current_month_breakdowns': {
                 'expenses': cur_report['expense_breakdown'] if cur_report else [],
                 'incomes': cur_report['income_breakdown'] if cur_report else [],
-            }
+            },
+            'occupancy_report': occupancy_report,
+            'complaints_report': complaints_report,
+            'security_report': security_report,
+            'facilities_report': facilities_report,
+            'vehicles_report': vehicles_report,
         }, status=status.HTTP_200_OK)
 
 class SocietyIncomeView(APIView):

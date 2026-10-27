@@ -40,6 +40,7 @@ import './features/security/chairman_security_screen.dart';
 import './features/security/security_guard_home_screen.dart';
 import './features/security/security_guard_desk_screen.dart';
 import './features/finance/reports_screen.dart';
+import './features/finance/treasurer_reports_screen.dart';
 import './features/finance/block_secretary_finance_screen.dart';
 
 void main() async {
@@ -120,6 +121,8 @@ class MyApp extends StatelessWidget {
         '/chairman-reports': (context) => const SocietyReportsScreen(),
         '/treasurer-home': (context) => const TreasurerHomeScreen(),
         '/treasurer-finance': (context) => const TreasurerFinanceScreen(),
+        '/treasurer-reports': (context) => const TreasurerReportsScreen(),
+        '/treasurer-report': (context) => const TreasurerReportsScreen(),
         '/secretary-home': (context) => const SecretaryHomeScreen(),
         '/secretary-notices': (context) => const SecretaryNoticesScreen(),
         '/secretary-members': (context) => const SecretaryDirectoryScreen(),

@@ -510,11 +510,24 @@ class CommunityApiService {
         'Authorization': 'Bearer $token',
       },
     );
-    final data = jsonDecode(res.body);
-    if (res.statusCode == 200 && data['success'] == true) {
-      return data['documents'] ?? [];
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      try {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          return data['documents'] ?? [];
+        } else {
+          throw Exception(data['error'] ?? 'Failed to load society documents');
+        }
+      } catch (e) {
+        throw Exception('Invalid data format received from server.');
+      }
     } else {
-      throw Exception(data['error'] ?? 'Failed to load society documents');
+      try {
+        final data = jsonDecode(res.body);
+        throw Exception(data['error'] ?? 'Server error (${res.statusCode})');
+      } catch (_) {
+        throw Exception('Server error (${res.statusCode}). Please check server logs.');
+      }
     }
   }
 
@@ -537,11 +550,20 @@ class CommunityApiService {
         'file_url': fileUrl,
       }),
     );
-    final data = jsonDecode(res.body);
-    if (res.statusCode == 201 && data['success'] == true) {
-      return data;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      if (data['success'] == true) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to upload document');
+      }
     } else {
-      throw Exception(data['error'] ?? 'Failed to upload document');
+      try {
+        final data = jsonDecode(res.body);
+        throw Exception(data['error'] ?? 'Failed to upload document (${res.statusCode})');
+      } catch (_) {
+        throw Exception('Server error (${res.statusCode})');
+      }
     }
   }
 
@@ -557,11 +579,20 @@ class CommunityApiService {
         'Authorization': 'Bearer $token',
       },
     );
-    final data = jsonDecode(res.body);
-    if (res.statusCode == 200 && data['success'] == true) {
-      return data;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      if (data['success'] == true) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? 'Failed to delete document');
+      }
     } else {
-      throw Exception(data['error'] ?? 'Failed to delete document');
+      try {
+        final data = jsonDecode(res.body);
+        throw Exception(data['error'] ?? 'Failed to delete document (${res.statusCode})');
+      } catch (_) {
+        throw Exception('Server error (${res.statusCode})');
+      }
     }
   }
 }

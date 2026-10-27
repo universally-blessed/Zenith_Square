@@ -264,7 +264,7 @@ class _LedgerSummaryTabState extends State<_LedgerSummaryTab> {
                     side: BorderSide(color: Colors.indigo.shade300),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: () => Navigator.pushNamed(context, '/chairman-reports'),
+                  onPressed: () => Navigator.pushNamed(context, '/treasurer-reports'),
                   icon: const Icon(Icons.insert_chart_outlined, size: 18),
                   label: const Text('View Financial Analytics & Executive Reports', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),

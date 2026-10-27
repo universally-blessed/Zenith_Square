@@ -212,7 +212,7 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
                       '/chairman-security',
                     ),
                   _ActionItem(
-                    'Reports',
+                    'Society Reports',
                     Icons.insert_chart_outlined,
                     Colors.indigo.shade800,
                     '/chairman-reports',

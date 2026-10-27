@@ -451,8 +451,7 @@ class _SocietyDocumentsScreenState extends State<SocietyDocumentsScreen> {
     try {
       final bool launched = await launchUrl(
         url,
-        mode: LaunchMode
-            .inAppBrowserView, // Opens as an in-app overlay inside your Flutter app
+        mode: LaunchMode.platformDefault,
       );
 
       if (!launched) {

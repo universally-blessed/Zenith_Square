@@ -234,7 +234,7 @@ class _TreasurerHomeScreenState extends State<TreasurerHomeScreen> {
                   _ActionItem('Expenses & Utilities', Icons.money_off, Colors.redAccent, () => _navigateToFinanceTab(4)),
                   _ActionItem('Payment Receipts', Icons.history, Colors.deepPurple, () => _navigateToFinanceTab(5)),
                   _ActionItem('Bank Details', Icons.account_balance, Colors.amber.shade800, () => _navigateToFinanceTab(6)),
-                  _ActionItem('Financial Reports', Icons.insert_chart_outlined, Colors.cyan.shade800, () => Navigator.pushNamed(context, '/chairman-reports')),
+                  _ActionItem('Financial Reports', Icons.insert_chart_outlined, Colors.cyan.shade800, () => Navigator.pushNamed(context, '/treasurer-reports')),
                 ]),
 
                 const SizedBox(height: 20),
