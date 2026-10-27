@@ -17,7 +17,9 @@ from .views import (
     SocietyFlatsDropdownListView,
     TenantMoveOutView,
     SocietyResidentDirectoryView,
-    AvailableRolesListView
+    AvailableRolesListView,
+    SocietyDocumentListCreateView,
+    DeleteSocietyDocumentView
 )
 
 urlpatterns = [
@@ -46,4 +48,7 @@ urlpatterns = [
     path('tenants/<str:tenant_id>/move-out/', TenantMoveOutView.as_view(), name='tenant-move-out'),
     path('flats-dropdown/', SocietyFlatsDropdownListView.as_view(), name='society-flats-dropdown'),
     path('roles/', AvailableRolesListView.as_view(), name='available-roles'),
+
+    path('documents/', SocietyDocumentListCreateView.as_view(), name='society-documents-list-create'),
+    path('documents/<str:document_id>/delete/', DeleteSocietyDocumentView.as_view(), name='society-document-delete'),
 ]

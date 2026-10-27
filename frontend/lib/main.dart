@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:frontend/features/communication/block_secretary_notices_screen.dart';
+import 'package:frontend/features/communication/secretary_notices_screen.dart';
+import 'package:frontend/features/community/society_documents_screen.dart';
 import './features/core/register_screen.dart';
 import './features/core/login_screen.dart';
 import './features/core/home_screen.dart';
 import './features/core/chairman_screen.dart';
+<<<<<<< HEAD
 import './features/core/treasurer_screen.dart';
+=======
+<<<<<<< HEAD
+import './features/core/secretary_screen.dart';
+import 'features/core/block_secretary_screen.dart';
+=======
+import './features/core/treasurer_screen.dart';
+>>>>>>> 86843ea (completed the treasure and security pannel)
+>>>>>>> backup-work
 import './features/core/forgot_password.dart';
 import './features/core/profile_screen.dart';
 import './features/core/nominee_screen.dart';
@@ -27,11 +39,15 @@ import './features/community/polls_screen.dart';
 import './features/community/chairman_polls_screen.dart';
 import './features/community/lost_found_screen.dart';
 import './features/community/chairman_lost_found_screen.dart';
+import './features/community/block_secretary_residents_screen.dart';
+import './features/community/secretary_directory_screen.dart';
+import './features/community/secretary_meetings_screen.dart';
 import './features/security/security_screen.dart';
 import './features/security/chairman_security_screen.dart';
 import './features/security/security_guard_home_screen.dart';
 import './features/security/security_guard_desk_screen.dart';
 import './features/finance/reports_screen.dart';
+import './features/finance/block_secretary_finance_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +66,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Resident Portal',
+      title: 'Zenith Square',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -111,6 +127,34 @@ class MyApp extends StatelessWidget {
         '/chairman-reports': (context) => const SocietyReportsScreen(),
         '/treasurer-home': (context) => const TreasurerHomeScreen(),
         '/treasurer-finance': (context) => const TreasurerFinanceScreen(),
+<<<<<<< HEAD
+=======
+
+        '/secretary-home': (context) => const SecretaryHomeScreen(),
+        '/secretary-notices': (context) => const SecretaryNoticesScreen(),
+        '/secretary-members': (context) => const SecretaryDirectoryScreen(),
+        '/secretary-complaints': (context) => const ChairmanComplaintsScreen(),
+        '/secretary-amenities': (context) => const ChairmanAmenitiesScreen(),
+        '/secretary-assets': (context) => const ChairmanVehiclesScreen(),
+        '/secretary-lost-found': (context) => const ChairmanLostFoundScreen(),
+        '/secretary-polls': (context) => const ChairmanPollsScreen(),
+        '/secretary-meetings': (context) => const SecretaryMeetingsScreen(),
+        '/secretary-finance': (context) => const ChairmanFinanceScreen(),
+        '/secretary-security': (context) => const SecurityScreen(),
+        '/secretary-tenants': (context) => const TenantListScreen(),
+        '/society-documents': (context) => const SocietyDocumentsScreen(),
+
+        '/block-secretary-home': (context) => const BlockSecretaryHomeScreen(),
+        '/block-secretary-notices': (context) =>
+            const BlockSecretaryNoticesScreen(),
+        '/block-secretary-residents': (context) =>
+            const BlockSecretaryResidentsScreen(),
+        '/block-secretary-complaints': (context) =>
+            const ChairmanComplaintsScreen(),
+        '/block-secretary-finance': (context) =>
+            const BlockSecretaryFinanceScreen(),
+        '/block-secretary-security': (context) => const SecurityScreen(),
+>>>>>>> backup-work
 
         '/security-home': (context) => const SecurityGuardHomeScreen(),
         '/security-guard-desk': (context) => const SecurityGuardDeskScreen(),

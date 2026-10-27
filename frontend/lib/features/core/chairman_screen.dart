@@ -217,6 +217,12 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
                     Colors.indigo.shade800,
                     '/chairman-reports',
                   ),
+                  _ActionItem(
+                    'Society Documents',
+                    Icons.receipt_long,
+                    Colors.indigo,
+                    '/society-documents',
+                  ),
                 ]),
               ],
             ),

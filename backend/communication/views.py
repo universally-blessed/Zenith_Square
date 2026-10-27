@@ -1,3 +1,5 @@
+# In communication_api/views.py
+
 import uuid
 from django.utils import timezone
 from django.db.models import Q
@@ -10,6 +12,7 @@ from core_api.models import Resident, Blocks
 from .models import Notice
 from .serializers import NoticeSerializer, CreateNoticeSerializer
 
+
 class NoticeListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -21,11 +24,21 @@ class NoticeListCreateView(APIView):
 
         role_name = user.role.role_name.lower() if user.role else 'resident'
 
-        # Chairman/Admin sees all notices in the society
+        # Chairman, General Secretary, and Admin view all notices in the society
         if role_name in ['chairman', 'secretary', 'admin']:
             notices = Notice.objects.filter(society=society, is_active=True).order_by('-created_at')
+
+        # Block Secretary sees society-wide notices + their specific block notices
+        elif role_name in ['block_secretary', 'block secretary']:
+            resident = Resident.objects.filter(user=user).first()
+            user_block = resident.flat.block if (resident and resident.flat) else None
+
+            notices = Notice.objects.filter(
+                Q(society=society) & Q(is_active=True) & (Q(block__isnull=True) | Q(block=user_block))
+            ).order_by('-created_at')
+
+        # Residents see society-wide notices + notices for their flat's block
         else:
-            # Resident sees society-wide notices (block_id IS NULL) + their specific block notices
             resident = Resident.objects.filter(user=user).first()
             user_block = resident.flat.block if (resident and resident.flat) else None
 
@@ -39,9 +52,12 @@ class NoticeListCreateView(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
-        role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin']:
-            return Response({'success': False, 'error': 'Unauthorized. Chairman privilege required.'}, status=status.HTTP_403_FORBIDDEN)
+        user = request.user
+        role_name = user.role.role_name.lower() if user.role else ''
+
+        allowed_roles = ['chairman', 'secretary', 'admin', 'block_secretary', 'block secretary']
+        if role_name not in allowed_roles:
+            return Response({'success': False, 'error': 'Unauthorized to publish announcements.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = CreateNoticeSerializer(data=request.data)
         if not serializer.is_valid():
@@ -52,20 +68,32 @@ class NoticeListCreateView(APIView):
         block_obj = None
         block_id_val = data.get('block_id')
 
-        # Validate that the block actually exists in this society
-        if block_id_val and block_id_val.lower() != 'all':
-            block_obj = Blocks.objects.filter(block_id=block_id_val, society=request.user.society).first()
-            if not block_obj:
-                return Response({'success': False, 'error': 'Specified target block was not found in your society.'}, status=status.HTTP_404_NOT_FOUND)
+        # Role-based block validation logic
+        if role_name in ['block_secretary', 'block secretary']:
+            # Block Secretary MUST publish to their assigned block only
+            resident = Resident.objects.filter(user=user).first()
+            user_block = resident.flat.block if (resident and resident.flat) else None
+
+            if not user_block:
+                return Response({'success': False, 'error': 'No assigned block found for this Block Secretary.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            block_obj = user_block
+
+        else:
+            # Secretary / Chairman / Admin can select a specific block or target "All Blocks" (None)
+            if block_id_val and block_id_val.lower() != 'all':
+                block_obj = Blocks.objects.filter(block_id=block_id_val, society=user.society).first()
+                if not block_obj:
+                    return Response({'success': False, 'error': 'Specified target block was not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         notice = Notice.objects.create(
             notice_id=str(uuid.uuid4())[:5].upper(),
-            society=request.user.society,
+            society=user.society,
             block=block_obj,
             title=data['title'].strip(),
             description=data['description'].strip(),
             priority=data.get('priority', 'normal').lower(),
-            created_by=request.user,
+            created_by=user,
             created_at=timezone.now(),
             is_active=True
         )
@@ -81,16 +109,17 @@ class NoticeDetailDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, notice_id):
-        role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin']:
-            return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
+        user = request.user
+        role_name = user.role.role_name.lower() if user.role else ''
 
-        notice = Notice.objects.filter(notice_id=notice_id, society=request.user.society).first()
+        notice = Notice.objects.filter(notice_id=notice_id, society=user.society).first()
         if not notice:
             return Response({'success': False, 'error': 'Notice not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Soft delete
-        notice.is_active = False
-        notice.save()
+        # Permission check: Author, Chairman, Secretary, or Admin can delete
+        if role_name in ['chairman', 'secretary', 'admin'] or notice.created_by == user:
+            notice.is_active = False
+            notice.save()
+            return Response({'success': True, 'message': 'Notice archived successfully!'}, status=status.HTTP_200_OK)
 
-        return Response({'success': True, 'message': 'Notice archived successfully!'}, status=status.HTTP_200_OK)
+        return Response({'success': False, 'error': 'Unauthorized to delete this notice.'}, status=status.HTTP_403_FORBIDDEN)

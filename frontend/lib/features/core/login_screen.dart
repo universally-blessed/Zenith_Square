@@ -36,11 +36,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         final role = (response['role'] ?? '').toString().toLowerCase();
+
         String targetRoute = '/home';
         if (role == 'chairman') {
           targetRoute = '/chairman-home';
+<<<<<<< HEAD
         } else if (role == 'treasurer') {
           targetRoute = '/treasurer-home';
+=======
+<<<<<<< HEAD
+        } else if (role == 'secretary') {
+          targetRoute = '/secretary-home';
+        } else if (role == 'block_secretary' || role == 'block secretary') {
+          targetRoute = '/block-secretary-home';
+=======
+        } else if (role == 'treasurer') {
+          targetRoute = '/treasurer-home';
+>>>>>>> 86843ea (completed the treasure and security pannel)
+>>>>>>> backup-work
         } else if (role.contains('security') || role.contains('guard')) {
           targetRoute = '/security-home';
         }
@@ -97,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sign in to your resident account',
+                    'Sign in to your account',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),

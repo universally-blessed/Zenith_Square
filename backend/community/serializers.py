@@ -11,6 +11,7 @@ from .models import (
     PollsResponse,
     LostFoundItem,
     Tenant,
+    SocietyDocument
 )
 
 
@@ -406,3 +407,44 @@ class ResidentMemberSerializer(serializers.ModelSerializer):
     def get_occupancy_type(self, obj):
         occ = Occupancy.objects.filter(resident=obj, flat=obj.flat).first()
         return occ.occupancy_type if occ else 'Owner'
+
+class SocietyDocumentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.user_name', read_only=True)
+
+    class Meta:
+        model = SocietyDocument
+        fields = [
+            'document_id',
+            'title',
+            'document_type',
+            'file_url',
+            'uploaded_by_name',
+            'uploaded_at',
+        ]
+        read_only_fields = ['document_id', 'uploaded_at']
+
+
+class CreateSocietyDocumentSerializer(serializers.Serializer):
+    title = serializers.CharField(
+        max_length=150,
+        min_length=3,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Document title is required.',
+            'blank': 'Title cannot be blank.',
+            'min_length': 'Title must be at least 3 characters long.',
+        }
+    )
+    document_type = serializers.CharField(
+        max_length=50,
+        default='General',
+        trim_whitespace=True
+    )
+    file_url = serializers.CharField(
+        max_length=500,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Document file URL / link is required.',
+            'blank': 'File URL cannot be blank.',
+        }
+    )
