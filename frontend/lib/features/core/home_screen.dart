@@ -26,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.pushNamedAndRemoveUntil(context, '/security-home', (route) => false);
         } else if (role == 'chairman') {
           Navigator.pushNamedAndRemoveUntil(context, '/chairman-home', (route) => false);
+        } else if (role == 'treasurer') {
+          Navigator.pushNamedAndRemoveUntil(context, '/treasurer-home', (route) => false);
         }
       }
       return profile;
@@ -158,13 +160,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            'Emergency Security SOS',
-                            style: TextStyle(
-                              color: Colors.red.shade900,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Emergency Security SOS & Gate Visitors',
+                                style: TextStyle(
+                                  color: Colors.red.shade900,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                'Tap to view live alerts & gate visitor logs',
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Icon(

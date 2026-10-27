@@ -75,6 +75,8 @@ class PaymentReceiptSerializer(serializers.ModelSerializer):
 
 
 class SocietyExpensesSerializer(serializers.ModelSerializer):
+    society_name = serializers.CharField(source='society.society_name', read_only=True)
+    society_city = serializers.CharField(source='society.society_city', read_only=True)
     expense_type = serializers.CharField(
         max_length=50,
         min_length=3,
@@ -106,8 +108,8 @@ class SocietyExpensesSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SocietyExpenses
-        fields = ['expense_id', 'expense_type', 'amount', 'payment_date', 'description']
-        read_only_fields = ['expense_id']
+        fields = ['expense_id', 'expense_type', 'amount', 'payment_date', 'description', 'society_name', 'society_city']
+        read_only_fields = ['expense_id', 'society_name', 'society_city']
 
     def validate_payment_date(self, value):
         if value > datetime.date.today():
@@ -148,6 +150,8 @@ class SettlePaymentRequestSerializer(serializers.Serializer):
     )
 
 class SocietyIncomeSerializer(serializers.ModelSerializer):
+    society_name = serializers.CharField(source='society.society_name', read_only=True)
+    society_city = serializers.CharField(source='society.society_city', read_only=True)
     income_type = serializers.CharField(
         max_length=50,
         min_length=3,
@@ -179,8 +183,8 @@ class SocietyIncomeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SocietyIncome
-        fields = ['income_id', 'income_type', 'amount', 'received_date', 'description']
-        read_only_fields = ['income_id']
+        fields = ['income_id', 'income_type', 'amount', 'received_date', 'description', 'society_name', 'society_city']
+        read_only_fields = ['income_id', 'society_name', 'society_city']
 
     def validate_received_date(self, value):
         if value > datetime.date.today():

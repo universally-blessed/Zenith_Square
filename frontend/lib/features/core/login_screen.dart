@@ -40,10 +40,15 @@ class _LoginScreenState extends State<LoginScreen> {
         String targetRoute = '/home';
         if (role == 'chairman') {
           targetRoute = '/chairman-home';
+<<<<<<< HEAD
         } else if (role == 'secretary') {
           targetRoute = '/secretary-home';
         } else if (role == 'block_secretary' || role == 'block secretary') {
           targetRoute = '/block-secretary-home';
+=======
+        } else if (role == 'treasurer') {
+          targetRoute = '/treasurer-home';
+>>>>>>> 86843ea (completed the treasure and security pannel)
         } else if (role.contains('security') || role.contains('guard')) {
           targetRoute = '/security-home';
         }

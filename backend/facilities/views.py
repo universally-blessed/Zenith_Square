@@ -353,11 +353,11 @@ class VehicleListCreateView(APIView):
         all_society = request.query_params.get('all', 'false').lower() == 'true'
 
         if all_society:
-            # Strictly restrict society-wide vehicle directory to chairman/secretary/admin
-            if role_name not in ['chairman', 'secretary', 'admin']:
+            # Society-wide vehicle directory for chairman/secretary/admin and security staff
+            if role_name not in ['chairman', 'secretary', 'admin', 'security', 'guard', 'security guard', 'security_guard', 'treasurer']:
                 return Response({
                     'success': False,
-                    'error': 'Unauthorized. Chairman/Admin privilege required to view all society vehicles.'
+                    'error': 'Unauthorized. Security/Chairman privilege required to view all society vehicles.'
                 }, status=status.HTTP_403_FORBIDDEN)
             
             vehicles = Vehicle.objects.filter(resident__flat__block__society=request.user.society)

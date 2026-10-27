@@ -56,7 +56,7 @@ class _SecurityScreenState extends State<SecurityScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Security & SOS Alerts'),
+        title: const Text('Emergency SOS & Gate Visitors'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
@@ -66,14 +66,19 @@ class _SecurityScreenState extends State<SecurityScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            const Tab(text: 'Active Alerts & SOS'),
-            if (_hasSecurity) const Tab(text: 'Visitor Logs'),
+            const Tab(text: 'Emergency SOS Alerts'),
+            if (_hasSecurity) const Tab(text: 'Gate Visitor Logs'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [const _AlertsTab(), if (_hasSecurity) const _VisitorsTab()],
+        children: [
+          _AlertsTab(
+            onViewVisitors: _hasSecurity ? () => _tabController.animateTo(1) : null,
+          ),
+          if (_hasSecurity) const _VisitorsTab(),
+        ],
       ),
     );
   }
@@ -83,7 +88,8 @@ class _SecurityScreenState extends State<SecurityScreen>
 // TAB 1: ACTIVE ALERTS & SOS TRIGGER
 // -------------------------------------------------------------
 class _AlertsTab extends StatefulWidget {
-  const _AlertsTab();
+  final VoidCallback? onViewVisitors;
+  const _AlertsTab({this.onViewVisitors});
 
   @override
   State<_AlertsTab> createState() => _AlertsTabState();
@@ -398,6 +404,50 @@ class _AlertsTabState extends State<_AlertsTab> {
           ),
         ),
 
+        if (widget.onViewVisitors != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 2.0),
+            child: InkWell(
+              onTap: widget.onViewVisitors,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.blue.shade100,
+                      child: Icon(Icons.people_alt_outlined, color: Colors.blue.shade800, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Gate Visitors Inside Society (Emergency Roll Call)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue.shade900),
+                          ),
+                          Text(
+                            'Tap to check all visitors logged inside for safety & evacuation',
+                            style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blue.shade700),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 6),
+
         Expanded(
           child: FutureBuilder<List<dynamic>>(
             future: _alertsFuture,
@@ -562,7 +612,7 @@ class _AlertsTabState extends State<_AlertsTab> {
 }
 
 // -------------------------------------------------------------
-// TAB 2: VISITOR GATE LOGS FOR RESIDENT FLAT
+// TAB 2: VISITOR GATE LOGS & EMERGENCY ROLL CALL
 // -------------------------------------------------------------
 class _VisitorsTab extends StatefulWidget {
   const _VisitorsTab();
@@ -573,6 +623,9 @@ class _VisitorsTab extends StatefulWidget {
 
 class _VisitorsTabState extends State<_VisitorsTab> {
   late Future<List<dynamic>> _visitorsFuture;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _filterMode = 'ALL'; // 'ALL', 'INSIDE', 'EXITED'
 
   @override
   void initState() {
@@ -588,130 +641,211 @@ class _VisitorsTabState extends State<_VisitorsTab> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<dynamic>>(
-      future: _visitorsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  snapshot.error.toString().replaceAll('Exception: ', ''),
-                  style: const TextStyle(color: Colors.red),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _loadVisitors,
-                  child: const Text('Retry'),
-                ),
-              ],
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search by Visitor, Phone, or Flat (e.g. 101)...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-          );
-        }
+            onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+          ),
+        ),
+        // Filter Chips
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: Row(
+            children: [
+              FilterChip(
+                label: const Text('All Gate Logs', style: TextStyle(fontSize: 12)),
+                selected: _filterMode == 'ALL',
+                onSelected: (_) => setState(() => _filterMode = 'ALL'),
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Inside Society', style: TextStyle(fontSize: 12)),
+                selected: _filterMode == 'INSIDE',
+                onSelected: (_) => setState(() => _filterMode = 'INSIDE'),
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Exited', style: TextStyle(fontSize: 12)),
+                selected: _filterMode == 'EXITED',
+                onSelected: (_) => setState(() => _filterMode = 'EXITED'),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 12),
+        // FutureBuilder for logs
+        Expanded(
+          child: FutureBuilder<List<dynamic>>(
+            future: _visitorsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-        final logs = snapshot.data ?? [];
-        if (logs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.badge_outlined,
-                  size: 64,
-                  color: Colors.grey.shade400,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'No visitor entries recorded for your unit.',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async => _loadVisitors(),
-          child: ListView.separated(
-            padding: const EdgeInsets.all(12.0),
-            itemCount: logs.length,
-            separatorBuilder: (ctx, i) => const SizedBox(height: 8),
-            itemBuilder: (ctx, i) {
-              final log = logs[i];
-              final hasExited = log['exit_time'] != null;
-              final entryTime = log['entry_time'] != null
-                  ? log['entry_time'].toString().substring(11, 16)
-                  : '--:--';
-              final entryDate = log['entry_time'] != null
-                  ? log['entry_time'].toString().substring(0, 10)
-                  : '';
-
-              return Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: hasExited
-                        ? Colors.grey.shade200
-                        : Colors.green.shade100,
-                    child: Icon(
-                      Icons.person_pin,
-                      color: hasExited
-                          ? Colors.grey.shade700
-                          : Colors.green.shade800,
-                    ),
-                  ),
-                  title: Text(
-                    log['visitor_name'] ?? 'Visitor',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'Destination: ${(log['society_name'] != null && log['society_name'].toString().isNotEmpty) ? log['society_name'] : 'Serene Heights'} • Flat ${log['flat_number'] ?? ''}\nPurpose: ${log['purpose'] ?? 'General'} • Contact: ${log['visitor_phone'] ?? 'N/A'}\nGate Entry: $entryDate at $entryTime',
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                  ),
-                  isThreeLine: true,
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: hasExited
-                          ? Colors.grey.shade100
-                          : Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: hasExited
-                            ? Colors.grey.shade300
-                            : Colors.green.shade300,
+              if (snapshot.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        snapshot.error.toString().replaceAll('Exception: ', ''),
+                        style: const TextStyle(color: Colors.red),
                       ),
-                    ),
-                    child: Text(
-                      hasExited ? 'EXITED' : 'INSIDE',
-                      style: TextStyle(
-                        color: hasExited
-                            ? Colors.grey.shade700
-                            : Colors.green.shade800,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _loadVisitors,
+                        child: const Text('Retry'),
                       ),
-                    ),
+                    ],
                   ),
+                );
+              }
+
+              final allLogs = snapshot.data ?? [];
+              final filtered = allLogs.where((log) {
+                final hasExited = log['exit_time'] != null;
+                if (_filterMode == 'INSIDE' && hasExited) return false;
+                if (_filterMode == 'EXITED' && !hasExited) return false;
+
+                if (_searchQuery.isEmpty) return true;
+                final name = (log['visitor_name'] ?? '').toString().toLowerCase();
+                final phone = (log['visitor_phone'] ?? '').toString().toLowerCase();
+                final flat = (log['flat_number'] ?? '').toString().toLowerCase();
+                final block = (log['block_name'] ?? '').toString().toLowerCase();
+                final purpose = (log['purpose'] ?? '').toString().toLowerCase();
+
+                return name.contains(_searchQuery) ||
+                    phone.contains(_searchQuery) ||
+                    flat.contains(_searchQuery) ||
+                    block.contains(_searchQuery) ||
+                    purpose.contains(_searchQuery);
+              }).toList();
+
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.badge_outlined, size: 60, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No visitor entries found matching criteria.',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async => _loadVisitors(),
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                  itemCount: filtered.length,
+                  separatorBuilder: (ctx, i) => const SizedBox(height: 8),
+                  itemBuilder: (ctx, i) {
+                    final log = filtered[i];
+                    final hasExited = log['exit_time'] != null;
+                    final entryTime = log['entry_time'] != null
+                        ? log['entry_time'].toString().substring(11, 16)
+                        : '--:--';
+                    final entryDate = log['entry_time'] != null
+                        ? log['entry_time'].toString().substring(0, 10)
+                        : '';
+                    final exitTime = log['exit_time'] != null
+                        ? log['exit_time'].toString().substring(11, 16)
+                        : '';
+
+                    return Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        side: BorderSide(
+                          color: hasExited ? Colors.grey.shade300 : Colors.green.shade400,
+                          width: hasExited ? 1 : 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: hasExited ? Colors.grey.shade100 : Colors.green.shade50,
+                          child: Icon(
+                            hasExited ? Icons.person_outline : Icons.person_pin,
+                            color: hasExited ? Colors.grey.shade600 : Colors.green.shade800,
+                          ),
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                log['visitor_name'] ?? 'Visitor',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: hasExited ? Colors.grey.shade100 : Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: hasExited ? Colors.grey.shade400 : Colors.green.shade400,
+                                ),
+                              ),
+                              child: Text(
+                                hasExited ? 'EXITED' : 'INSIDE',
+                                style: TextStyle(
+                                  color: hasExited ? Colors.grey.shade700 : Colors.green.shade800,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            'Visiting: Flat ${log['flat_number'] ?? ''} (${log['block_name'] ?? 'A'}) • ${log['society_name'] ?? 'Serene Heights'}\n'
+                            'Purpose: ${log['purpose'] ?? 'General'} • Contact: ${log['visitor_phone'] ?? 'N/A'}\n'
+                            'Entry: $entryDate at $entryTime${hasExited ? ' • Exit: $exitTime' : ''}',
+                            style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                          ),
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  },
                 ),
               );
             },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

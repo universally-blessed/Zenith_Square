@@ -92,15 +92,20 @@ class RegisterResidentView(APIView):
 
         # 4. Create Occupancy
         occupancy_type = data.get('occupancyType', 'Owner')
-        # Check if a primary occupant already exists for this flat
-        has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
+        # If registering as Owner, or if no active primary exists, make this resident the primary occupant
+        if occupancy_type == 'Owner':
+            Occupancy.objects.filter(flat=flat_obj).update(is_primary=False)
+            is_primary = True
+        else:
+            has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
+            is_primary = not has_primary
 
         Occupancy.objects.create(
             occupancy_id=str(uuid.uuid4())[:5].upper(),
             flat=flat_obj,
             resident=resident,
             occupancy_type=occupancy_type,
-            is_primary=not has_primary
+            is_primary=is_primary
         )
 
         # 5. Generate OTP

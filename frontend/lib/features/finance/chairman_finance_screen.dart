@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/datasource/finance_api_service.dart';
+import 'widgets/financial_document_helper.dart';
 
 class ChairmanFinanceScreen extends StatefulWidget {
   const ChairmanFinanceScreen({super.key});
@@ -584,48 +585,120 @@ class _ChairmanIncomesTabState extends State<_ChairmanIncomesTab> {
               separatorBuilder: (ctx, i) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
                 final inc = incomes[i];
+                final amountVal = (inc['amount'] is num
+                    ? inc['amount']
+                    : double.tryParse(inc['amount'].toString()) ?? 0.0).toDouble();
+
                 return Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     side: BorderSide(color: Colors.grey.shade300),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFE0F2F1),
-                      child: Icon(Icons.savings_outlined, color: Colors.teal),
-                    ),
-                    title: Text(
-                      inc['income_type'] ?? 'Income',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      (inc['description'] != null &&
-                              inc['description'].toString().isNotEmpty)
-                          ? inc['description']
-                          : 'No description provided',
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '+₹${inc['amount']}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.green.shade700,
-                          ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFE0F2F1),
+                          child: Icon(Icons.savings_outlined, color: Colors.teal),
                         ),
-                        Text(
-                          inc['received_date'] ?? '',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 11,
-                          ),
+                        title: Text(
+                          inc['income_type'] ?? 'Income',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      ],
-                    ),
+                        subtitle: Text(
+                          (inc['description'] != null &&
+                                  inc['description'].toString().isNotEmpty)
+                              ? inc['description']
+                              : 'No description provided',
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '+₹${amountVal.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                            Text(
+                              inc['received_date'] ?? '',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 14, right: 14, bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                foregroundColor: Colors.teal.shade800,
+                                side: BorderSide(color: Colors.teal.shade200),
+                              ),
+                              icon: const Icon(Icons.visibility_outlined, size: 14),
+                              label: const Text('View Receipt', style: TextStyle(fontSize: 12)),
+                              onPressed: () {
+                                final doc = FinancialDocument(
+                                  type: FinancialDocumentType.societyIncome,
+                                  docNumber: 'REC-INC-${inc['income_id'] ?? ''}',
+                                  title: 'SOCIETY INCOME RECEIPT',
+                                  societyName: inc['society_name'] ?? 'Zenith Square Co-Op Housing Society Ltd.',
+                                  societyCity: inc['society_city'] ?? 'Ahmedabad, Gujarat',
+                                  categoryOrHead: inc['income_type'] ?? 'Society Income',
+                                  amount: amountVal,
+                                  date: inc['received_date'] ?? '',
+                                  status: 'RECEIVED & CREDITED',
+                                  payerOrPayee: inc['income_type'] ?? 'Revenue Source',
+                                  paymentMethod: 'ONLINE / BANK / CASH',
+                                  description: inc['description'] ?? '',
+                                );
+                                FinancialDocumentHelper.viewDocument(context, doc);
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                backgroundColor: Colors.teal.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                              label: const Text('Download PDF', style: TextStyle(fontSize: 12)),
+                              onPressed: () {
+                                final doc = FinancialDocument(
+                                  type: FinancialDocumentType.societyIncome,
+                                  docNumber: 'REC-INC-${inc['income_id'] ?? ''}',
+                                  title: 'SOCIETY INCOME RECEIPT',
+                                  societyName: inc['society_name'] ?? 'Zenith Square Co-Op Housing Society Ltd.',
+                                  societyCity: inc['society_city'] ?? 'Ahmedabad, Gujarat',
+                                  categoryOrHead: inc['income_type'] ?? 'Society Income',
+                                  amount: amountVal,
+                                  date: inc['received_date'] ?? '',
+                                  status: 'RECEIVED & CREDITED',
+                                  payerOrPayee: inc['income_type'] ?? 'Revenue Source',
+                                  paymentMethod: 'ONLINE / BANK / CASH',
+                                  description: inc['description'] ?? '',
+                                );
+                                FinancialDocumentHelper.downloadDocument(context, doc);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -989,45 +1062,115 @@ class _ChairmanExpensesTabState extends State<_ChairmanExpensesTab> {
                     side: BorderSide(color: Colors.grey.shade300),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFEDE7F6),
-                      child: Icon(
-                        Icons.receipt_outlined,
-                        color: Colors.deepPurple,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFEDE7F6),
+                          child: Icon(
+                            Icons.receipt_outlined,
+                            color: Colors.deepPurple,
+                          ),
+                        ),
+                        title: Text(
+                          exp['expense_type'] ?? 'Expense',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          (exp['description'] != null &&
+                                  exp['description'].toString().isNotEmpty)
+                              ? exp['description']
+                              : 'No description provided',
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₹',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.redAccent,
+                              ),
+                            ),
+                            Text(
+                              exp['payment_date'] ?? '',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    title: Text(
-                      exp['expense_type'] ?? 'Expense',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      (exp['description'] != null &&
-                              exp['description'].toString().isNotEmpty)
-                          ? exp['description']
-                          : 'No description provided',
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '₹${exp['amount']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.redAccent,
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 14, right: 14, bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                foregroundColor: Colors.deepPurple,
+                                side: BorderSide(color: Colors.deepPurple.shade200),
+                              ),
+                              icon: const Icon(Icons.visibility_outlined, size: 14),
+                              label: const Text('View Voucher', style: TextStyle(fontSize: 12)),
+                              onPressed: () {
+                                final amt = (exp['amount'] is num ? exp['amount'] : double.tryParse(exp['amount'].toString()) ?? 0.0).toDouble();
+                                final doc = FinancialDocument(
+                                  type: FinancialDocumentType.societyExpense,
+                                  docNumber: 'VOU-EXP-${exp['expense_id'] ?? ''}',
+                                  title: 'EXPENSE PAYMENT VOUCHER',
+                                  societyName: exp['society_name'] ?? 'Zenith Square Co-Op Housing Society Ltd.',
+                                  societyCity: exp['society_city'] ?? 'Ahmedabad, Gujarat',
+                                  categoryOrHead: exp['expense_type'] ?? 'General Expense',
+                                  amount: amt,
+                                  date: exp['payment_date'] ?? '',
+                                  status: 'PAID & SETTLED',
+                                  payerOrPayee: 'Zenith Square Society Treasury',
+                                  paymentMethod: 'TREASURY DISBURSEMENT',
+                                  description: exp['description'] ?? '',
+                                );
+                                FinancialDocumentHelper.viewDocument(context, doc);
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                backgroundColor: Colors.deepPurple,
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                              label: const Text('Download PDF', style: TextStyle(fontSize: 12)),
+                              onPressed: () {
+                                final amt = (exp['amount'] is num ? exp['amount'] : double.tryParse(exp['amount'].toString()) ?? 0.0).toDouble();
+                                final doc = FinancialDocument(
+                                  type: FinancialDocumentType.societyExpense,
+                                  docNumber: 'VOU-EXP-${exp['expense_id'] ?? ''}',
+                                  title: 'EXPENSE PAYMENT VOUCHER',
+                                  societyName: exp['society_name'] ?? 'Zenith Square Co-Op Housing Society Ltd.',
+                                  societyCity: exp['society_city'] ?? 'Ahmedabad, Gujarat',
+                                  categoryOrHead: exp['expense_type'] ?? 'General Expense',
+                                  amount: amt,
+                                  date: exp['payment_date'] ?? '',
+                                  status: 'PAID & SETTLED',
+                                  payerOrPayee: 'Zenith Square Society Treasury',
+                                  paymentMethod: 'TREASURY DISBURSEMENT',
+                                  description: exp['description'] ?? '',
+                                );
+                                FinancialDocumentHelper.downloadDocument(context, doc);
+                              },
+                            ),
+                          ],
                         ),
-                        Text(
-                          exp['payment_date'] ?? '',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -1314,25 +1457,101 @@ class _ChairmanPaymentHistoryTabState
                   side: BorderSide(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.greenAccent,
-                    child: Icon(Icons.check, color: Colors.green),
-                  ),
-                  title: Text(
-                    '${item['bill_month'] ?? 'Maintenance'} - ₹${item['amount']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'Receipt: ${item['receipt_number']}\nMethod: ${item['payment_method']}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Text(
-                    item['payment_date'] != null
-                        ? item['payment_date'].toString().substring(0, 10)
-                        : '',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Colors.greenAccent,
+                        child: Icon(Icons.check, color: Colors.green),
+                      ),
+                      title: Text(
+                        '${item['bill_month'] ?? 'Maintenance'} - ₹${item['amount']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        'Receipt: ${item['receipt_number'] ?? 'N/A'}\nMethod: ${item['payment_method'] ?? 'Online'}',
+                      ),
+                      isThreeLine: true,
+                      trailing: Text(
+                        item['payment_date'] != null
+                            ? item['payment_date'].toString().substring(0, 10)
+                            : '',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 14, right: 14, bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              foregroundColor: Colors.green.shade800,
+                              side: BorderSide(color: Colors.green.shade200),
+                            ),
+                            icon: const Icon(Icons.visibility_outlined, size: 14),
+                            label: const Text('View Receipt', style: TextStyle(fontSize: 12)),
+                            onPressed: () {
+                              final amt = (item['amount'] is num ? item['amount'] : double.tryParse(item['amount'].toString()) ?? 0.0).toDouble();
+                              final doc = FinancialDocument(
+                                type: FinancialDocumentType.paymentReceipt,
+                                docNumber: item['receipt_number'] ?? 'REC-${item['receipt_id'] ?? ''}',
+                                title: 'MAINTENANCE PAYMENT RECEIPT',
+                                societyName: 'Zenith Square Co-Op Housing Society Ltd.',
+                                societyCity: 'Ahmedabad, Gujarat',
+                                categoryOrHead: 'Maintenance Charges (${item['bill_month'] ?? 'Monthly'})',
+                                amount: amt,
+                                date: item['payment_date'] != null ? item['payment_date'].toString().substring(0, 10) : (item['generated_at'] ?? ''),
+                                status: 'COMPLETED & VERIFIED',
+                                payerOrPayee: 'Chairman / Resident Account',
+                                paymentMethod: item['payment_method'] ?? 'ONLINE',
+                                extraDetails: {
+                                  'Receipt Number': item['receipt_number'] ?? '',
+                                  'Billing Cycle': item['bill_month'] ?? '',
+                                },
+                              );
+                              FinancialDocumentHelper.viewDocument(context, doc);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              backgroundColor: Colors.green.shade700,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                            label: const Text('Download PDF', style: TextStyle(fontSize: 12)),
+                            onPressed: () {
+                              final amt = (item['amount'] is num ? item['amount'] : double.tryParse(item['amount'].toString()) ?? 0.0).toDouble();
+                              final doc = FinancialDocument(
+                                type: FinancialDocumentType.paymentReceipt,
+                                docNumber: item['receipt_number'] ?? 'REC-${item['receipt_id'] ?? ''}',
+                                title: 'MAINTENANCE PAYMENT RECEIPT',
+                                societyName: 'Zenith Square Co-Op Housing Society Ltd.',
+                                societyCity: 'Ahmedabad, Gujarat',
+                                categoryOrHead: 'Maintenance Charges (${item['bill_month'] ?? 'Monthly'})',
+                                amount: amt,
+                                date: item['payment_date'] != null ? item['payment_date'].toString().substring(0, 10) : (item['generated_at'] ?? ''),
+                                status: 'COMPLETED & VERIFIED',
+                                payerOrPayee: 'Chairman / Resident Account',
+                                paymentMethod: item['payment_method'] ?? 'ONLINE',
+                                extraDetails: {
+                                  'Receipt Number': item['receipt_number'] ?? '',
+                                  'Billing Cycle': item['bill_month'] ?? '',
+                                },
+                              );
+                              FinancialDocumentHelper.downloadDocument(context, doc);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
