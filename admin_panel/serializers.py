@@ -105,6 +105,7 @@ class SocietySerializer(serializers.ModelSerializer):
     class Meta:
         model = Societies
         fields = '__all__'
+        read_only_fields = ['created_at']
 
     def validate_billing_cycle(self, value):
         cleaned = value.strip().upper()

@@ -80,7 +80,7 @@ class SocietyViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=society_data)
         serializer.is_valid(raise_exception=True)
-        society = serializer.save()
+        society = serializer.save(created_at=timezone.now())
 
         config_id = f"C{society.society_id.replace('SOC', '')}"[:5].ljust(5, '0')
         SocietyFeatures.objects.create(

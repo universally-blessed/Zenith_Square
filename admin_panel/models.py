@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class Admin(models.Model):
     a_id = models.CharField(primary_key=True, max_length=5)
@@ -363,7 +364,7 @@ class Societies(models.Model):
     late_fee_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     billing_cycle = models.CharField(max_length=20, default='MONTHLY')
     society_status = models.CharField(max_length=20, default='active')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         managed = True
