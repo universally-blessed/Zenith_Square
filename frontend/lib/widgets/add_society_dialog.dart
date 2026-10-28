@@ -23,7 +23,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
   final _emailController = TextEditingController();
   final _maintenanceRateController = TextEditingController(text: '2500.00');
   final _lateFeeController = TextEditingController(text: '5.00');
-  String _billingCycle = 'MONTHLY';
+  String _billingCycle = 'Monthly';
 
   // Feature Flag States
   bool _hasBlockSecretary = false;
@@ -180,8 +180,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     final pincodeRegex = RegExp(r'^[1-9][0-9]{5}$');
 
     return Dialog(
@@ -195,7 +194,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -211,12 +209,10 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
               ),
               const Divider(height: 20),
 
-              // Main Two-Column Layout
               Expanded(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Left Column: Basic Details & Features
                     Expanded(
                       flex: 5,
                       child: SingleChildScrollView(
@@ -224,7 +220,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // 1. Society ID & Name
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -242,6 +237,11 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                       TextFormField(
                                         controller: _idController,
                                         maxLength: 5,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'[a-zA-Z0-9]'),
+                                          ),
+                                        ],
                                         decoration: const InputDecoration(
                                           hintText: 'S0001',
                                           border: OutlineInputBorder(),
@@ -250,8 +250,20 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         ),
                                         validator: (v) {
                                           final val = v?.trim() ?? '';
-                                          if (val.isEmpty) return 'Required';
-                                          if (val.length < 2) return 'Min 2';
+                                          if (val.isEmpty) {
+                                            return 'Society ID is required';
+                                          }
+                                          if (val.contains(' ')) {
+                                            return 'No spaces allowed';
+                                          }
+                                          if (!RegExp(
+                                            r'^[a-zA-Z0-9]+$',
+                                          ).hasMatch(val)) {
+                                            return 'No special characters allowed';
+                                          }
+                                          if (val.length < 2) {
+                                            return 'Min 2 characters';
+                                          }
                                           return null;
                                         },
                                       ),
@@ -281,9 +293,12 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         ),
                                         validator: (v) {
                                           final val = v?.trim() ?? '';
-                                          if (val.isEmpty) return 'Required';
-                                          if (val.length < 3)
+                                          if (val.isEmpty) {
+                                            return 'Name is required';
+                                          }
+                                          if (val.length < 3) {
                                             return 'Min 3 chars';
+                                          }
                                           return null;
                                         },
                                       ),
@@ -294,7 +309,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 12),
 
-                            // 2. Full Address
                             _buildFieldLabel('Full Address', isRequired: true),
                             const SizedBox(height: 4),
                             TextFormField(
@@ -311,7 +325,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 12),
 
-                            // 3. City & Pincode (Own row for clear visibility)
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -341,14 +354,16 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         ),
                                         validator: (v) {
                                           final val = v?.trim() ?? '';
-                                          if (val.isEmpty)
+                                          if (val.isEmpty) {
                                             return 'City is required';
-                                          if (val.length < 2)
+                                          }
+                                          if (val.length < 2) {
                                             return 'Min 2 characters';
+                                          }
                                           if (!RegExp(
                                             r'^[a-zA-Z\s]+$',
                                           ).hasMatch(val)) {
-                                            return 'Only letters and spaces allowed (no numbers or symbols)';
+                                            return 'Only letters and spaces allowed';
                                           }
                                           return null;
                                         },
@@ -383,10 +398,12 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         ),
                                         validator: (v) {
                                           final val = v?.trim() ?? '';
-                                          if (val.isEmpty)
+                                          if (val.isEmpty) {
                                             return 'Pincode required';
-                                          if (!pincodeRegex.hasMatch(val))
-                                            return '6 digits';
+                                          }
+                                          if (!pincodeRegex.hasMatch(val)) {
+                                            return 'Must be 6 digits';
+                                          }
                                           return null;
                                         },
                                       ),
@@ -397,7 +414,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 12),
 
-                            // 4. Phone & Email
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -407,7 +423,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       _buildFieldLabel(
-                                        'Phone',
+                                        'Phone Number',
                                         isRequired: true,
                                       ),
                                       const SizedBox(height: 4),
@@ -420,17 +436,19 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                               .digitsOnly,
                                         ],
                                         decoration: const InputDecoration(
-                                          hintText: '10-digit phone',
+                                          hintText: '9876543210',
                                           border: OutlineInputBorder(),
                                           counterText: '',
                                           isDense: true,
                                         ),
                                         validator: (v) {
                                           final val = v?.trim() ?? '';
-                                          if (val.isEmpty)
-                                            return 'Phone required';
-                                          if (!phoneRegex.hasMatch(val))
-                                            return 'Starts 6-9';
+                                          if (val.isEmpty) {
+                                            return 'Phone number is required';
+                                          }
+                                          if (val.length != 10) {
+                                            return 'Must be exactly 10 digits';
+                                          }
                                           return null;
                                         },
                                       ),
@@ -455,10 +473,14 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                           isDense: true,
                                         ),
                                         validator: (v) {
-                                          final val = v?.trim() ?? '';
-                                          if (val.isNotEmpty &&
-                                              !emailRegex.hasMatch(val)) {
-                                            return 'Invalid email';
+                                          final val = v ?? '';
+                                          if (val.contains(' ')) {
+                                            return 'Email cannot contain spaces';
+                                          }
+                                          final trimmed = val.trim();
+                                          if (trimmed.isNotEmpty &&
+                                              !emailRegex.hasMatch(trimmed)) {
+                                            return 'Enter a valid email address';
                                           }
                                           return null;
                                         },
@@ -470,7 +492,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 12),
 
-                            // 5. Rate, Late Fee & Billing Cycle
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -504,8 +525,9 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                           final val = v?.trim() ?? '';
                                           if (val.isEmpty) return 'Required';
                                           final parsed = double.tryParse(val);
-                                          if (parsed == null || parsed < 0)
+                                          if (parsed == null || parsed < 0) {
                                             return 'Invalid';
+                                          }
                                           return null;
                                         },
                                       ),
@@ -571,15 +593,15 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                         ),
                                         items: const [
                                           DropdownMenuItem(
-                                            value: 'MONTHLY',
+                                            value: 'Monthly',
                                             child: Text('Monthly'),
                                           ),
                                           DropdownMenuItem(
-                                            value: 'QUARTERLY',
+                                            value: 'Quarterly',
                                             child: Text('Quarterly'),
                                           ),
                                           DropdownMenuItem(
-                                            value: 'YEARLY',
+                                            value: 'Yearly',
                                             child: Text('Yearly'),
                                           ),
                                         ],
@@ -593,7 +615,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 14),
 
-                            // Feature Toggles
                             const Text(
                               'Modular Feature Flags',
                               style: TextStyle(
@@ -646,7 +667,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
 
                     const VerticalDivider(width: 1),
 
-                    // Right Column: Blocks & Flats Generator
                     Expanded(
                       flex: 5,
                       child: Padding(
@@ -663,7 +683,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 8),
 
-                            // Generator Box
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
@@ -755,7 +774,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                             ),
                             const SizedBox(height: 12),
 
-                            // Configured Blocks List
                             Expanded(
                               child: _blocks.isEmpty
                                   ? const Center(
@@ -850,7 +868,6 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
 
               const Divider(height: 16),
 
-              // Action Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

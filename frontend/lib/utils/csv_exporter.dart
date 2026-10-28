@@ -17,19 +17,16 @@ class CsvExporter {
       ['Society Scope:', societyName],
       ['Generated On:', DateTime.now().toIso8601String().split('T').first],
       [],
-      // Section 1: Occupancy
       ['OCCUPANCY DISTRIBUTION', 'COUNT', 'PERCENTAGE (%)'],
       ['Owner Occupied', occupancy['owner_occupied'] ?? 0, ''],
       ['Tenant Occupied', occupancy['tenant_occupied'] ?? 0, ''],
       ['Vacant Units', occupancy['vacant'] ?? 0, ''],
       ['Total Flats', occupancy['total_flats'] ?? 0, '100%'],
       [],
-      // Section 2: Financials
       ['FINANCIAL OVERVIEW', 'VALUE'],
       ['Total Expenses (INR)', fin['total_expenses'] ?? 0],
       ['Overall Collection Rate (%)', '${fin['collection_rate'] ?? 0}%'],
       [],
-      // Section 3: Monthly Breakdown
       ['MONTHLY EXPENSES', 'AMOUNT (INR)'],
       ...(fin['monthly_expenses'] as List<dynamic>? ?? []).map(
         (e) => [e['month'], e['amount']],
@@ -40,7 +37,6 @@ class CsvExporter {
         (e) => [e['month'], '${e['rate']}%'],
       ),
       [],
-      // Section 4: Complaints & Security
       ['COMPLAINTS & SECURITY METRICS', 'COUNT'],
       ['Complaints Filed', complaints['filed'] ?? 0],
       ['Complaints Resolved', complaints['resolved'] ?? 0],
@@ -49,17 +45,14 @@ class CsvExporter {
         '${complaints['avg_resolution_days'] ?? 0} Days',
       ],
       [],
-      // Section 5: Visitors
       ['MONTHLY VISITOR TRAFFIC', 'VISITOR COUNT'],
       ...(visitors as List<dynamic>).map((v) => [v['month'], v['count']]),
     ];
 
-    // Convert rows to CSV formatted string
     final csvString = rows
         .map((row) => row.map((cell) => '"$cell"').join(','))
         .join('\r\n');
 
-    // Trigger browser download in Flutter Web
     final bytes = utf8.encode(csvString);
     final blob = web.Blob([bytes.toJS].toJS);
     final url = web.URL.createObjectURL(blob);

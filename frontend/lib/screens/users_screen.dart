@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/register_security_dialog.dart';
 
 class UsersScreen extends StatefulWidget {
   final Map<String, dynamic> adminData;
@@ -61,21 +62,20 @@ class _UsersScreenState extends State<UsersScreen>
   }
 
   // Dialog for Scenario 1: Direct Assignment
-  // Update _showAssignInitialRoleDialog inside _UsersScreenState:
   void _showAssignInitialRoleDialog(Map<String, dynamic> user) {
-    String? currentRoleId = user['role_id']?.toString();
-    if (currentRoleId == null && user['role'] != null) {
-      currentRoleId = user['role'] is Map
-          ? user['role']['role_id']?.toString()
-          : user['role']?.toString();
-    }
-
-    final bool roleExists = _roles.any(
-      (r) => r['role_id'].toString() == currentRoleId,
+    final chairmanRole = _roles.firstWhere(
+      (r) => r['role_name'].toString().toLowerCase() == 'chairman',
+      orElse: () => null,
     );
-    String? selectedRole = roleExists
-        ? currentRoleId
-        : (_roles.isNotEmpty ? _roles.first['role_id'].toString() : null);
+
+    if (chairmanRole == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chairman role is not configured in the database.'),
+        ),
+      );
+      return;
+    }
 
     bool isSubmitting = false;
     String? dialogError;
@@ -87,48 +87,43 @@ class _UsersScreenState extends State<UsersScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          title: Text('Assign Initial Role: ${user['user_name']}'),
+          title: Text('Appoint Initial Chairman: ${user['user_name']}'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RichText(
-                text: const TextSpan(
-                  text: 'Select Role',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
+              Text(
+                'Assign ${user['user_name']} as the inaugural Chairman of ${user['society_name'] ?? 'this society'}. Once appointed, all other leadership roles must go through Chairman approval.',
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
                   children: [
-                    TextSpan(
-                      text: ' *',
-                      style: TextStyle(
-                        color: Colors.red,
+                    const Icon(
+                      Icons.shield,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Role: ${chairmanRole['role_name']}',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
+                        color: Color(0xFF2563EB),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: selectedRole,
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-                items: _roles.map<DropdownMenuItem<String>>((r) {
-                  return DropdownMenuItem(
-                    value: r['role_id'].toString(),
-                    child: Text(r['role_name'] ?? r['role_id'].toString()),
-                  );
-                }).toList(),
-                onChanged: isSubmitting
-                    ? null
-                    : (val) {
-                        setModalState(() {
-                          selectedRole = val;
-                          dialogError = null;
-                        });
-                      },
               ),
               if (dialogError != null) ...[
                 const SizedBox(height: 12),
@@ -159,13 +154,6 @@ class _UsersScreenState extends State<UsersScreen>
               onPressed: isSubmitting
                   ? null
                   : () async {
-                      if (selectedRole == null) {
-                        setModalState(
-                          () => dialogError = 'Please select a role',
-                        );
-                        return;
-                      }
-
                       setModalState(() {
                         isSubmitting = true;
                         dialogError = null;
@@ -174,14 +162,14 @@ class _UsersScreenState extends State<UsersScreen>
                       try {
                         final success = await ApiService.assignInitialRole(
                           user['user_id'],
-                          selectedRole!,
+                          chairmanRole['role_id'].toString(),
                         );
 
                         if (success && mounted) {
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Role assigned successfully!'),
+                              content: Text('Chairman appointed successfully!'),
                               backgroundColor: Colors.green,
                             ),
                           );
@@ -207,7 +195,7 @@ class _UsersScreenState extends State<UsersScreen>
                       ),
                     )
                   : const Text(
-                      'Assign Role',
+                      'Confirm Chairman',
                       style: TextStyle(color: Colors.white),
                     ),
             ),
@@ -217,7 +205,6 @@ class _UsersScreenState extends State<UsersScreen>
     );
   }
 
-  // Update _showInitiateChangeDialog inside _UsersScreenState:
   void _showInitiateChangeDialog(Map<String, dynamic> user) {
     String? selectedRole = _roles.isNotEmpty
         ? _roles.first['role_id'].toString()
@@ -445,6 +432,46 @@ class _UsersScreenState extends State<UsersScreen>
 
     return ListView(
       children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'User Directory',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(
+                Icons.shield_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
+              label: const Text(
+                'Register Security',
+                style: TextStyle(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => RegisterSecurityDialog(
+                    societies: _societies,
+                    onSecurityRegistered: _loadData,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         // Search and Filter Controls
         Row(
           children: [
@@ -550,6 +577,7 @@ class _UsersScreenState extends State<UsersScreen>
         const SizedBox(height: 16),
 
         // Users Table
+        // Users Table with Horizontal Scroll Protection
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -561,94 +589,124 @@ class _UsersScreenState extends State<UsersScreen>
               ),
             ],
           ),
-          child: DataTable(
-            headingRowColor: WidgetStatePropertyAll(Colors.grey.shade100),
-            // Update DataTable columns
-            columns: const [
-              DataColumn(label: Text('User ID')),
-              DataColumn(label: Text('Name')),
-              DataColumn(label: Text('Email')),
-              DataColumn(label: Text('Phone')),
-              DataColumn(label: Text('Society')),
-              DataColumn(label: Text('Role')),
-              DataColumn(label: Text('Status')),
-              DataColumn(label: Text('Actions')),
-            ],
-            rows: paginatedUsers.map<DataRow>((u) {
-              final bool isActive = u['is_active'] ?? true;
-              return DataRow(
-                cells: [
-                  DataCell(Text(u['user_id'] ?? '')),
-                  DataCell(Text(u['user_name'] ?? '')),
-                  DataCell(Text(u['user_email'] ?? '-')),
-                  DataCell(Text(u['user_phone'] ?? '-')),
-                  DataCell(Text(u['society_name'] ?? u['society_id'] ?? '-')),
-                  DataCell(Text(u['role_name'] ?? u['role_id'] ?? '-')),
-                  DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        isActive ? 'Active' : 'Inactive',
-                        style: TextStyle(
-                          color: isActive ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Single Action: Soft Deactivate / Reactivate
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Scenario 1: Assign initial role directly
-                        IconButton(
-                          icon: const Icon(
-                            Icons.assignment_ind,
-                            color: Color(0xFF2563EB),
-                            size: 20,
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  columnSpacing:
+                      18, // Reduced from default 56 to prevent overflow
+                  horizontalMargin: 16,
+                  headingRowColor: WidgetStatePropertyAll(Colors.grey.shade100),
+                  columns: const [
+                    DataColumn(label: Text('User ID')),
+                    DataColumn(label: Text('Name')),
+                    DataColumn(label: Text('Email')),
+                    DataColumn(label: Text('Phone')),
+                    DataColumn(label: Text('Society')),
+                    DataColumn(label: Text('Role')),
+                    DataColumn(label: Text('Status')),
+                    DataColumn(label: Text('Actions')),
+                  ],
+                  rows: paginatedUsers.map<DataRow>((u) {
+                    final bool isActive = u['is_active'] ?? true;
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(u['user_id'] ?? '')),
+                        DataCell(Text(u['user_name'] ?? '')),
+                        DataCell(Text(u['user_email'] ?? '-')),
+                        DataCell(Text(u['user_phone'] ?? '-')),
+                        DataCell(
+                          Text(
+                            u['society_name'] ??
+                                (u['society'] is Map
+                                    ? u['society']['society_name']
+                                    : u['society']) ??
+                                u['society_id'] ??
+                                '-',
                           ),
-                          tooltip: 'Assign Initial Role Directly',
-                          onPressed: () => _showAssignInitialRoleDialog(u),
                         ),
-                        // Scenario 2: Propose role change (Dual Approval)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.swap_horiz,
-                            color: Colors.orange,
-                            size: 20,
+                        DataCell(
+                          Text(
+                            u['role_name'] ??
+                                (u['role'] is Map
+                                    ? u['role']['role_name']
+                                    : u['role']) ??
+                                u['role_id'] ??
+                                'Resident',
                           ),
-                          tooltip: 'Initiate Role Change (Awaits Chairman)',
-                          onPressed: () => _showInitiateChangeDialog(u),
                         ),
-                        // Soft Deactivate / Reactivate
-                        IconButton(
-                          icon: Icon(
-                            isActive ? Icons.block : Icons.check_circle_outline,
-                            color: isActive ? Colors.redAccent : Colors.green,
-                            size: 20,
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              isActive ? 'Active' : 'Inactive',
+                              style: TextStyle(
+                                color: isActive ? Colors.green : Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                          tooltip: isActive
-                              ? 'Deactivate Account'
-                              : 'Reactivate Account',
-                          onPressed: () =>
-                              _toggleStatus(u['user_id'], isActive),
+                        ),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.assignment_ind,
+                                  color: Color(0xFF2563EB),
+                                  size: 19,
+                                ),
+                                tooltip: 'Assign Initial Role Directly',
+                                onPressed: () =>
+                                    _showAssignInitialRoleDialog(u),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.swap_horiz,
+                                  color: Colors.orange,
+                                  size: 19,
+                                ),
+                                tooltip:
+                                    'Initiate Role Change (Awaits Chairman)',
+                                onPressed: () => _showInitiateChangeDialog(u),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  isActive
+                                      ? Icons.block
+                                      : Icons.check_circle_outline,
+                                  color: isActive
+                                      ? Colors.redAccent
+                                      : Colors.green,
+                                  size: 19,
+                                ),
+                                tooltip: isActive
+                                    ? 'Deactivate Account'
+                                    : 'Reactivate Account',
+                                onPressed: () =>
+                                    _toggleStatus(u['user_id'], isActive),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                ],
-              );
-            }).toList(),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 12),

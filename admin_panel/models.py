@@ -1,8 +1,7 @@
 from django.db import models
 
-
 class Admin(models.Model):
-    a_id = models.AutoField(primary_key=True)
+    a_id = models.CharField(primary_key=True, max_length=5)
     a_username = models.CharField(max_length=255)
     a_email = models.CharField(unique=True, max_length=255)
     a_password = models.CharField(max_length=255)
@@ -14,11 +13,11 @@ class Admin(models.Model):
 
 class Amenity(models.Model):
     amenity_id = models.CharField(primary_key=True, max_length=6)
-    society = models.ForeignKey('Societies', models.DB_CASCADE, blank=True, null=True)
+    society = models.ForeignKey('Societies', on_delete=models.CASCADE)
     amenity_name = models.CharField(max_length=100)
     amenity_location = models.CharField(max_length=100)
     amenity_capacity = models.IntegerField()
-    amenity_status = models.CharField(max_length=20, blank=True, null=True)
+    amenity_status = models.CharField(max_length=20, default='available')
 
     class Meta:
         managed = True
@@ -27,14 +26,14 @@ class Amenity(models.Model):
 
 class AmenityBooking(models.Model):
     booking_id = models.CharField(primary_key=True, max_length=6)
-    amenity = models.ForeignKey(Amenity, models.DB_CASCADE, blank=True, null=True)
-    resident = models.ForeignKey('Resident', models.DB_CASCADE, blank=True, null=True)
+    amenity = models.ForeignKey(Amenity, on_delete=models.CASCADE)
+    resident = models.ForeignKey('Resident', on_delete=models.CASCADE)
     booking_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
-    status = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=20, default='pending')
     payment_deadline = models.DateTimeField(blank=True, null=True)
-    payment_id = models.CharField(max_length=5, blank=True, null=True)
+    payment_id = models.CharField(max_length=50, blank=True, null=True)  # FIXED: Expanded from 5 to 50 to match DB
 
     class Meta:
         managed = True
@@ -43,7 +42,7 @@ class AmenityBooking(models.Model):
 
 class Asset(models.Model):
     asset_id = models.CharField(primary_key=True, max_length=5)
-    society = models.ForeignKey('Societies', models.DB_CASCADE, blank=True, null=True)
+    society = models.ForeignKey('Societies', on_delete=models.CASCADE)
     asset_name = models.CharField(max_length=100)
     asset_type = models.CharField(max_length=50)
     asset_location = models.CharField(max_length=100)
@@ -56,11 +55,11 @@ class Asset(models.Model):
 
 class AssetMaintenance(models.Model):
     maintenance_id = models.CharField(primary_key=True, max_length=6)
-    asset = models.ForeignKey(Asset, models.DB_CASCADE, blank=True, null=True)
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE)
     description = models.TextField()
     maintenance_date = models.DateField()
     maintenance_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    recorded_by = models.ForeignKey('Resident', models.DO_NOTHING, db_column='recorded_by', blank=True, null=True)
+    recorded_by = models.ForeignKey('Resident', on_delete=models.SET_NULL, db_column='recorded_by', blank=True, null=True)
 
     class Meta:
         managed = True
@@ -69,7 +68,7 @@ class AssetMaintenance(models.Model):
 
 class Blocks(models.Model):
     block_id = models.CharField(primary_key=True, max_length=5)
-    society = models.ForeignKey('Societies', models.DB_CASCADE, blank=True, null=True)
+    society = models.ForeignKey('Societies', on_delete=models.CASCADE)
     block_name = models.CharField(max_length=50)
 
     class Meta:
@@ -79,11 +78,32 @@ class Blocks(models.Model):
 
 class CommitteeChange(models.Model):
     request_id = models.CharField(primary_key=True, max_length=10)
-    requested_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='requested_by', blank=True, null=True)
-    target_user = models.ForeignKey('Users', models.DO_NOTHING, db_column='target_user', related_name='committeechange_target_user_set', blank=True, null=True)
-    new_role = models.ForeignKey('Roles', models.DO_NOTHING, blank=True, null=True)
-    admin = models.ForeignKey('Users', models.DO_NOTHING, related_name='committeechange_admin_set', blank=True, null=True)
-    status = models.CharField(max_length=50, blank=True, null=True)
+    requested_by = models.ForeignKey(
+        'Users', 
+        on_delete=models.SET_NULL, 
+        db_column='requested_by', 
+        blank=True, 
+        null=True
+    )
+    target_user = models.ForeignKey(
+        'Users', 
+        on_delete=models.SET_NULL, 
+        db_column='target_user', 
+        related_name='committeechange_target_user_set', 
+        blank=True, 
+        null=True
+    )
+    new_role = models.ForeignKey('Roles', on_delete=models.SET_NULL, blank=True, null=True)
+    # FIXED: Point foreign key to 'Admin' table so Admin ID can be stored properly
+    admin = models.ForeignKey(
+        'Admin', 
+        on_delete=models.SET_NULL, 
+        db_column='admin_id',
+        related_name='committee_changes', 
+        blank=True, 
+        null=True
+    )
+    status = models.CharField(max_length=50, default='Pending')
 
     class Meta:
         managed = True
@@ -92,12 +112,12 @@ class CommitteeChange(models.Model):
 
 class Complaint(models.Model):
     complaint_id = models.CharField(primary_key=True, max_length=10)
-    resident = models.ForeignKey('Resident', models.DB_CASCADE, blank=True, null=True)
-    block = models.ForeignKey(Blocks, models.DB_SET_NULL, blank=True, null=True)
+    resident = models.ForeignKey('Resident', on_delete=models.CASCADE)
+    block = models.ForeignKey(Blocks, on_delete=models.SET_NULL, blank=True, null=True)
     title = models.CharField(max_length=150)
     description = models.TextField()
-    status = models.CharField(max_length=20, blank=True, null=True)
-    created_at = models.DateTimeField(blank=True, null=True)
+    status = models.CharField(max_length=20, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
@@ -118,10 +138,10 @@ class CoreApiTemporaryotp(models.Model):
 
 class Feedback(models.Model):
     feedback_id = models.CharField(primary_key=True, max_length=10)
-    resident = models.ForeignKey('Resident', models.DB_CASCADE, blank=True, null=True)
+    resident = models.ForeignKey('Resident', on_delete=models.CASCADE)
     feedback_text = models.TextField()
     rating = models.IntegerField(blank=True, null=True)
-    created_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -130,7 +150,7 @@ class Feedback(models.Model):
 
 class Flats(models.Model):
     flat_id = models.CharField(primary_key=True, max_length=5)
-    block = models.ForeignKey(Blocks, models.DB_CASCADE, blank=True, null=True)
+    block = models.ForeignKey(Blocks, on_delete=models.CASCADE)
     flat_number = models.CharField(max_length=20)
     floor_number = models.IntegerField()
 
@@ -144,8 +164,8 @@ class LostFoundItem(models.Model):
     item_name = models.CharField(max_length=100)
     item_description = models.TextField()
     item_status = models.CharField(max_length=20)
-    reported_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='reported_by', blank=True, null=True)
-    handled_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='handled_by', related_name='lostfounditem_handled_by_set', blank=True, null=True)
+    reported_by = models.ForeignKey('Users', on_delete=models.SET_NULL, db_column='reported_by', blank=True, null=True)
+    handled_by = models.ForeignKey('Users', on_delete=models.SET_NULL, db_column='handled_by', related_name='lostfounditem_handled_by_set', blank=True, null=True)
     item_location = models.CharField(max_length=100)
     reported_date = models.DateField()
 
@@ -156,12 +176,12 @@ class LostFoundItem(models.Model):
 
 class MaintenanceBill(models.Model):
     bill_id = models.CharField(primary_key=True, max_length=6)
-    flat = models.ForeignKey(Flats, models.DB_CASCADE, blank=True, null=True)
-    payer = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
+    flat = models.ForeignKey(Flats, on_delete=models.CASCADE)
+    payer = models.ForeignKey('Users', on_delete=models.SET_NULL, blank=True, null=True)
     bill_month = models.CharField(max_length=20)
     payable_amount = models.DecimalField(max_digits=10, decimal_places=2)
     due_date = models.DateField()
-    status = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=20, default='pending')
 
     class Meta:
         managed = True
@@ -175,7 +195,7 @@ class Meeting(models.Model):
     meeting_date = models.DateField()
     start_time = models.TimeField()
     location = models.CharField(max_length=100)
-    organized_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='organized_by', blank=True, null=True)
+    organized_by = models.ForeignKey('Users', on_delete=models.SET_NULL, db_column='organized_by', blank=True, null=True)
     minutes_doc = models.TextField(blank=True, null=True)
 
     class Meta:
@@ -185,8 +205,8 @@ class Meeting(models.Model):
 
 class Messages(models.Model):
     message_id = models.UUIDField(primary_key=True)
-    sender = models.ForeignKey('Users', models.DB_CASCADE)
-    receiver = models.ForeignKey('Users', models.DB_CASCADE, related_name='messages_receiver_set')
+    sender = models.ForeignKey('Users', on_delete=models.CASCADE)
+    receiver = models.ForeignKey('Users', on_delete=models.CASCADE, related_name='messages_receiver_set')
     message_text = models.TextField()
     timestamp = models.DateTimeField()
 
@@ -197,7 +217,7 @@ class Messages(models.Model):
 
 class Nominee(models.Model):
     nominee_id = models.CharField(primary_key=True, max_length=5)
-    resident = models.ForeignKey('Resident', models.DB_CASCADE, blank=True, null=True)
+    resident = models.ForeignKey('Resident', on_delete=models.CASCADE)
     nominee_name = models.CharField(max_length=100)
     relationship = models.CharField(max_length=50)
     phone = models.CharField(max_length=10)
@@ -211,14 +231,14 @@ class Nominee(models.Model):
 
 class Notice(models.Model):
     notice_id = models.CharField(primary_key=True, max_length=5)
-    society = models.ForeignKey('Societies', models.DB_CASCADE, blank=True, null=True)
-    block = models.ForeignKey(Blocks, models.DB_SET_NULL, blank=True, null=True)
+    society = models.ForeignKey('Societies', on_delete=models.CASCADE)
+    block = models.ForeignKey(Blocks, on_delete=models.SET_NULL, blank=True, null=True)
     title = models.CharField(max_length=150)
     description = models.TextField()
-    created_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='created_by', blank=True, null=True)
-    created_at = models.DateTimeField(blank=True, null=True)
-    priority = models.CharField(max_length=10, blank=True, null=True)
-    is_active = models.BooleanField(blank=True, null=True)
+    created_by = models.ForeignKey('Users', on_delete=models.SET_NULL, db_column='created_by', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    priority = models.CharField(max_length=10, default='normal')
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         managed = True
@@ -227,10 +247,10 @@ class Notice(models.Model):
 
 class Occupancy(models.Model):
     occupancy_id = models.CharField(primary_key=True, max_length=5)
-    flat = models.ForeignKey(Flats, models.DB_CASCADE, blank=True, null=True)
-    resident = models.ForeignKey('Resident', models.DB_CASCADE, blank=True, null=True)
+    flat = models.ForeignKey(Flats, on_delete=models.CASCADE)
+    resident = models.ForeignKey('Resident', on_delete=models.CASCADE)
     occupancy_type = models.CharField(max_length=50)
-    is_primary = models.BooleanField(blank=True, null=True)
+    is_primary = models.BooleanField(default=False)
 
     class Meta:
         managed = True
@@ -239,13 +259,13 @@ class Occupancy(models.Model):
 
 class Payment(models.Model):
     payment_id = models.CharField(primary_key=True, max_length=5)
-    resident = models.ForeignKey('Resident', models.DB_CASCADE, blank=True, null=True)
+    resident = models.ForeignKey('Resident', on_delete=models.CASCADE)
     bill_id = models.CharField(max_length=6, blank=True, null=True)
     payment_type = models.CharField(max_length=20)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20)
-    status = models.CharField(max_length=20, blank=True, null=True)
-    payment_date = models.DateTimeField(blank=True, null=True)
+    status = models.CharField(max_length=20, default='pending')
+    payment_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -254,9 +274,9 @@ class Payment(models.Model):
 
 class PaymentReceipt(models.Model):
     receipt_id = models.CharField(primary_key=True, max_length=6)
-    payment = models.ForeignKey(Payment, models.DB_CASCADE, blank=True, null=True)
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE)
     receipt_number = models.CharField(unique=True, max_length=50)
-    generated_at = models.DateTimeField(blank=True, null=True)
+    generated_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -267,9 +287,9 @@ class Polls(models.Model):
     poll_id = models.CharField(primary_key=True, max_length=6)
     poll_title = models.CharField(max_length=150)
     poll_description = models.TextField()
-    created_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='created_by', blank=True, null=True)
+    created_by = models.ForeignKey('Users', on_delete=models.SET_NULL, db_column='created_by', blank=True, null=True)
     end_date = models.DateField()
-    status = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=20, default='active')
 
     class Meta:
         managed = True
@@ -278,7 +298,7 @@ class Polls(models.Model):
 
 class PollsOption(models.Model):
     option_id = models.CharField(primary_key=True, max_length=5)
-    poll = models.ForeignKey(Polls, models.DB_CASCADE, blank=True, null=True)
+    poll = models.ForeignKey(Polls, on_delete=models.CASCADE)
     option_text = models.CharField(max_length=100)
 
     class Meta:
@@ -288,10 +308,10 @@ class PollsOption(models.Model):
 
 class PollsResponse(models.Model):
     response_id = models.CharField(primary_key=True, max_length=6)
-    poll = models.ForeignKey(Polls, models.DB_CASCADE, blank=True, null=True)
-    option = models.ForeignKey(PollsOption, models.DB_CASCADE, blank=True, null=True)
-    user = models.ForeignKey('Users', models.DB_CASCADE, blank=True, null=True)
-    voted_at = models.DateTimeField(blank=True, null=True)
+    poll = models.ForeignKey(Polls, on_delete=models.CASCADE)
+    option = models.ForeignKey(PollsOption, on_delete=models.CASCADE)
+    user = models.ForeignKey('Users', on_delete=models.CASCADE)
+    voted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -300,8 +320,8 @@ class PollsResponse(models.Model):
 
 class Resident(models.Model):
     resident_id = models.CharField(primary_key=True, max_length=6)
-    user = models.ForeignKey('Users', models.DB_CASCADE, blank=True, null=True)
-    flat = models.ForeignKey(Flats, models.DB_CASCADE, blank=True, null=True)
+    user = models.ForeignKey('Users', on_delete=models.CASCADE)
+    flat = models.ForeignKey(Flats, on_delete=models.CASCADE)
     move_in_date = models.DateField()
 
     class Meta:
@@ -322,9 +342,9 @@ class SecurityAlerts(models.Model):
     alert_id = models.CharField(primary_key=True, max_length=6)
     alert_type = models.CharField(max_length=50)
     description = models.TextField()
-    triggered_by = models.ForeignKey('Users', models.DO_NOTHING, db_column='triggered_by', blank=True, null=True)
-    status = models.CharField(max_length=20, blank=True, null=True)
-    created_at = models.DateTimeField(blank=True, null=True)
+    triggered_by = models.ForeignKey('Users', on_delete=models.SET_NULL, db_column='triggered_by', blank=True, null=True)
+    status = models.CharField(max_length=20, default='active')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -340,10 +360,10 @@ class Societies(models.Model):
     society_email = models.CharField(unique=True, max_length=100, blank=True, null=True)
     society_phone = models.CharField(max_length=15)
     standard_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    late_fee_percent = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    billing_cycle = models.CharField(max_length=20, blank=True, null=True)
-    society_status = models.CharField(max_length=20, blank=True, null=True)
-    created_at = models.DateTimeField(blank=True, null=True)
+    late_fee_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    billing_cycle = models.CharField(max_length=20, default='MONTHLY')
+    society_status = models.CharField(max_length=20, default='active')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -352,12 +372,12 @@ class Societies(models.Model):
 
 class SocietyCommittee(models.Model):
     committee_id = models.CharField(primary_key=True, max_length=6)
-    user = models.ForeignKey('Users', models.DB_CASCADE, blank=True, null=True)
-    society = models.ForeignKey(Societies, models.DB_CASCADE, blank=True, null=True)
-    role = models.ForeignKey(Roles, models.DO_NOTHING, blank=True, null=True)
+    user = models.ForeignKey('Users', on_delete=models.CASCADE)
+    society = models.ForeignKey(Societies, on_delete=models.CASCADE)
+    role = models.ForeignKey(Roles, on_delete=models.SET_NULL, blank=True, null=True)
     election_date = models.DateField()
     term_end = models.DateField(blank=True, null=True)
-    status = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=20, default='Active')
 
     class Meta:
         managed = True
@@ -366,7 +386,7 @@ class SocietyCommittee(models.Model):
 
 class SocietyExpenses(models.Model):
     expense_id = models.CharField(primary_key=True, max_length=6)
-    society = models.ForeignKey(Societies, models.DB_CASCADE, blank=True, null=True)
+    society = models.ForeignKey(Societies, on_delete=models.CASCADE)
     expense_type = models.CharField(max_length=50)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_date = models.DateField()
@@ -379,10 +399,10 @@ class SocietyExpenses(models.Model):
 
 class SocietyFeatures(models.Model):
     config_id = models.CharField(primary_key=True, max_length=5)
-    society = models.ForeignKey(Societies, models.DB_CASCADE, blank=True, null=True)
-    has_block_secretary = models.BooleanField(blank=True, null=True)
-    has_nominee = models.BooleanField(blank=True, null=True)
-    has_security = models.BooleanField(blank=True, null=True)
+    society = models.ForeignKey(Societies, on_delete=models.CASCADE)
+    has_block_secretary = models.BooleanField(default=False)
+    has_nominee = models.BooleanField(default=True)
+    has_security = models.BooleanField(default=True)
 
     class Meta:
         managed = True
@@ -391,11 +411,11 @@ class SocietyFeatures(models.Model):
 
 class Tenant(models.Model):
     tenant_id = models.CharField(primary_key=True, max_length=6)
-    user = models.ForeignKey('Users', models.DB_CASCADE, blank=True, null=True)
-    flat = models.ForeignKey(Flats, models.DB_CASCADE, blank=True, null=True)
-    owner = models.ForeignKey('Users', models.DO_NOTHING, related_name='tenant_owner_set', blank=True, null=True)
+    user = models.ForeignKey('Users', on_delete=models.CASCADE)
+    flat = models.ForeignKey(Flats, on_delete=models.CASCADE)
+    owner = models.ForeignKey('Users', on_delete=models.SET_NULL, related_name='tenant_owner_set', blank=True, null=True)
     custom_maintenance = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    status = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=20, default='active')
     move_in_date = models.DateField()
     move_out_date = models.DateField(blank=True, null=True)
 
@@ -406,16 +426,16 @@ class Tenant(models.Model):
 
 class Users(models.Model):
     user_id = models.CharField(primary_key=True, max_length=5)
-    society = models.ForeignKey(Societies, models.DB_CASCADE, blank=True, null=True)
+    society = models.ForeignKey(Societies, on_delete=models.CASCADE, blank=True, null=True)
     user_name = models.CharField(max_length=100)
     user_phone = models.CharField(unique=True, max_length=10)
     user_email = models.CharField(unique=True, max_length=100, blank=True, null=True)
-    role = models.ForeignKey(Roles, models.DO_NOTHING, blank=True, null=True)
+    role = models.ForeignKey(Roles, on_delete=models.SET_NULL, blank=True, null=True)
     password = models.CharField(max_length=255)
-    is_active = models.BooleanField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
     last_login = models.DateTimeField(blank=True, null=True)
-    is_superuser = models.BooleanField(blank=True, null=True)
-    is_staff = models.BooleanField(blank=True, null=True)
+    is_superuser = models.BooleanField(default=False)
+    is_staff = models.BooleanField(default=False)
 
     class Meta:
         managed = True
@@ -424,7 +444,7 @@ class Users(models.Model):
 
 class Vehicle(models.Model):
     vehicle_id = models.CharField(primary_key=True, max_length=6)
-    resident = models.ForeignKey(Resident, models.DB_CASCADE, blank=True, null=True)
+    resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
     vehicle_number = models.CharField(unique=True, max_length=20)
     vehicle_type = models.CharField(max_length=20)
     vehicle_allotment_number = models.CharField(max_length=50)
@@ -446,12 +466,13 @@ class Visitor(models.Model):
 
 class VisitorLogs(models.Model):
     log_id = models.AutoField(primary_key=True)
-    visitor = models.ForeignKey(Visitor, models.DO_NOTHING, blank=True, null=True)
-    flat = models.ForeignKey(Flats, models.DO_NOTHING, blank=True, null=True)
+    visitor = models.ForeignKey(Visitor, on_delete=models.CASCADE)
+    flat = models.ForeignKey(Flats, on_delete=models.CASCADE)
     entry_time = models.DateTimeField()
     exit_time = models.DateTimeField(blank=True, null=True)
     purpose = models.CharField(max_length=200)
-    recorded_by = models.ForeignKey(Users, models.DO_NOTHING, db_column='recorded_by', blank=True, null=True)
+    recorded_by = models.ForeignKey(Users, on_delete=models.SET_NULL, db_column='recorded_by', blank=True, null=True)
+    society_id = models.CharField(max_length=10, blank=True, null=True)  # FIXED: Added missing column from DB schema
 
     class Meta:
         managed = True

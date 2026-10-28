@@ -21,7 +21,7 @@ class AdminJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            admin_id = payload.get('admin_id')
+            admin_id = str(payload.get('admin_id'))
             
             if not admin_id:
                 raise exceptions.AuthenticationFailed("Invalid token payload")

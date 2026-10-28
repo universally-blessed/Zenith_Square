@@ -1,14 +1,11 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart';
-import '../screens/login_screen.dart';
 import 'session_manager.dart';
 
 class ApiService {
   static const String baseUrl = 'http://127.0.0.1:8000/api/admin';
 
-  // Helper to build authenticated headers
   static Future<Map<String, String>> _getHeaders() async {
     final token = await SessionManager.getToken();
     return {
@@ -17,15 +14,11 @@ class ApiService {
     };
   }
 
-  // Central Response Interceptor
   static http.Response _handleResponse(http.Response response) {
     if (response.statusCode == 401) {
-      // Clear expired token
       SessionManager.clearSession();
-
-      // Redirect immediately to login screen
-      navigatorKey.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/admin/login',
         (route) => false,
       );
       throw Exception('Session expired. Please log in again.');
@@ -33,7 +26,6 @@ class ApiService {
     return response;
   }
 
-  // 1. Admin Login
   static Future<Map<String, dynamic>> login(
     String email,
     String password,
@@ -49,11 +41,11 @@ class ApiService {
       await SessionManager.saveSession(data['token'], data['admin']);
       return data['admin'];
     } else {
-      throw Exception(jsonDecode(response.body)['error'] ?? 'Login failed');
+      final err = jsonDecode(response.body);
+      throw Exception(err['error'] ?? err['detail'] ?? 'Login failed');
     }
   }
 
-  // 2. Fetch Societies
   static Future<List<dynamic>> getSocieties() async {
     final headers = await _getHeaders();
     final rawResponse = await http.get(
@@ -69,8 +61,6 @@ class ApiService {
     }
   }
 
-  // 3. Create Society
-  // 3. Create Society with Blocks & Flats
   static Future<bool> createSociety(Map<String, dynamic> data) async {
     final headers = await _getHeaders();
     final rawResponse = await http.post(
@@ -83,7 +73,6 @@ class ApiService {
     if (response.statusCode == 201) {
       return true;
     } else {
-      // Decode backend error for clear user feedback
       try {
         final errorData = jsonDecode(response.body);
         final errorMessage = errorData is Map
@@ -99,21 +88,37 @@ class ApiService {
     }
   }
 
-  // Fetch Blocks for a specific society (Useful for dropdowns / filters)
-  static Future<List<dynamic>> getSocietyBlocks(String societyId) async {
+  static Future<bool> updateSociety(
+    String societyId,
+    Map<String, dynamic> data,
+  ) async {
     final headers = await _getHeaders();
-    final rawResponse = await http.get(
-      Uri.parse('$baseUrl/societies/$societyId/blocks/'),
+    final rawResponse = await http.put(
+      Uri.parse('$baseUrl/societies/$societyId/'),
       headers: headers,
+      body: jsonEncode(data),
     );
     final response = _handleResponse(rawResponse);
+
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return true;
+    } else {
+      try {
+        final err = jsonDecode(response.body);
+        if (err is Map) {
+          final firstError = err.values.first;
+          final message = firstError is List
+              ? firstError.first
+              : firstError.toString();
+          throw Exception(message);
+        }
+      } catch (e) {
+        if (e is Exception) rethrow;
+      }
+      throw Exception('Failed to update society (${response.statusCode})');
     }
-    return [];
   }
 
-  // 4. Fetch Users
   static Future<List<dynamic>> getUsers({
     String? societyId,
     String? roleId,
@@ -130,13 +135,13 @@ class ApiService {
     ).replace(queryParameters: params.isEmpty ? null : params);
     final rawResponse = await http.get(uri, headers: headers);
     final response = _handleResponse(rawResponse);
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
     throw Exception('Failed to load users');
   }
 
-  // 5. Toggle User Status
   static Future<bool> toggleUserStatus(
     String userId,
     bool currentStatus,
@@ -151,7 +156,6 @@ class ApiService {
     return response.statusCode == 200;
   }
 
-  // 6. Fetch Committee Requests
   static Future<List<dynamic>> getCommitteeRequests() async {
     final headers = await _getHeaders();
     final rawResponse = await http.get(
@@ -167,23 +171,20 @@ class ApiService {
     }
   }
 
-  // 7. Handle Committee Request (Approve/Reject)
-  static Future<bool> handleCommitteeRequest(
+  static Future<bool> handleCommitteeAction(
     String requestId,
-    String action,
-    int adminId,
+    String actionName,
   ) async {
     final headers = await _getHeaders();
     final rawResponse = await http.post(
-      Uri.parse('$baseUrl/committee-requests/$requestId/$action/'),
+      Uri.parse('$baseUrl/committee-requests/$requestId/action/'),
       headers: headers,
-      body: jsonEncode({'admin_id': adminId.toString()}),
+      body: jsonEncode({'action': actionName}),
     );
     final response = _handleResponse(rawResponse);
     return response.statusCode == 200;
   }
 
-  // 8. Fetch Reports Summary
   static Future<Map<String, dynamic>> getReportsSummary({
     String? societyId,
   }) async {
@@ -198,11 +199,57 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to load reports data');
+      throw Exception('Failed to load reports summary data');
     }
   }
 
-  // Fetch Society Feature Configuration
+  static Future<Map<String, dynamic>> getFinancialsReport({
+    String? societyId,
+    String? month,
+  }) async {
+    final headers = await _getHeaders();
+    final params = <String, String>{};
+    if (societyId != null && societyId.isNotEmpty) {
+      params['society_id'] = societyId;
+    }
+    if (month != null && month.isNotEmpty) params['month'] = month;
+
+    final uri = Uri.parse(
+      '$baseUrl/reports/financials/',
+    ).replace(queryParameters: params.isEmpty ? null : params);
+    final rawResponse = await http.get(uri, headers: headers);
+    final response = _handleResponse(rawResponse);
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getSecurityComplaintsReport({
+    String? societyId,
+  }) async {
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl/reports/security-complaints/').replace(
+      queryParameters: (societyId != null && societyId.isNotEmpty)
+          ? {'society_id': societyId}
+          : null,
+    );
+    final rawResponse = await http.get(uri, headers: headers);
+    final response = _handleResponse(rawResponse);
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getOperationsReport({
+    String? societyId,
+  }) async {
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl/reports/operations/').replace(
+      queryParameters: (societyId != null && societyId.isNotEmpty)
+          ? {'society_id': societyId}
+          : null,
+    );
+    final rawResponse = await http.get(uri, headers: headers);
+    final response = _handleResponse(rawResponse);
+    return jsonDecode(response.body);
+  }
+
   static Future<Map<String, dynamic>?> getSocietyFeatures(
     String societyId,
   ) async {
@@ -224,7 +271,6 @@ class ApiService {
     }
   }
 
-  // Update or Create Society Feature Configuration
   static Future<bool> saveSocietyFeatures(
     Map<String, dynamic> data, {
     String? configId,
@@ -250,7 +296,6 @@ class ApiService {
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
-  // Soft delete / Toggle Society Active Status
   static Future<bool> toggleSocietyStatus(String societyId) async {
     final headers = await _getHeaders();
     final rawResponse = await http.post(
@@ -261,23 +306,6 @@ class ApiService {
     return response.statusCode == 200;
   }
 
-  // Fetch Admin Profile
-  static Future<Map<String, dynamic>> getAdminProfile() async {
-    final headers = await _getHeaders();
-    final rawResponse = await http.get(
-      Uri.parse('$baseUrl/profile/'),
-      headers: headers,
-    );
-    final response = _handleResponse(rawResponse);
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to load profile');
-    }
-  }
-
-  // Update Admin Profile & Password
   static Future<Map<String, dynamic>> updateAdminProfile({
     required String username,
     required String email,
@@ -301,20 +329,17 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      // Update locally cached profile
       final token = await SessionManager.getToken();
       if (token != null) {
         await SessionManager.saveSession(token, data['admin']);
       }
       return data;
     } else {
-      throw Exception(
-        jsonDecode(response.body)['error'] ?? 'Failed to update profile',
-      );
+      final err = jsonDecode(response.body);
+      throw Exception(err['error'] ?? 'Failed to update profile');
     }
   }
 
-  // Fetch Homepage Overview Data
   static Future<Map<String, dynamic>> getOverviewDashboard() async {
     final headers = await _getHeaders();
     final rawResponse = await http.get(
@@ -330,34 +355,6 @@ class ApiService {
     }
   }
 
-  // Update Society Profile & Maintenance Configurations
-  static Future<bool> updateSociety(
-    String societyId,
-    Map<String, dynamic> data,
-  ) async {
-    final headers = await _getHeaders();
-    final rawResponse = await http.put(
-      Uri.parse('$baseUrl/societies/$societyId/'),
-      headers: headers,
-      body: jsonEncode(data),
-    );
-    final response = _handleResponse(rawResponse);
-    return response.statusCode == 200;
-  }
-
-  // 2. Create New User
-  static Future<bool> createUser(Map<String, dynamic> data) async {
-    final headers = await _getHeaders();
-    final rawResponse = await http.post(
-      Uri.parse('$baseUrl/users/'),
-      headers: headers,
-      body: jsonEncode(data),
-    );
-    final response = _handleResponse(rawResponse);
-    return response.statusCode == 201;
-  }
-
-  // 4. Fetch Roles
   static Future<List<dynamic>> getRoles() async {
     final headers = await _getHeaders();
     final rawResponse = await http.get(
@@ -373,84 +370,6 @@ class ApiService {
     }
   }
 
-  static Future<bool> createRole(String roleId, String roleName) async {
-    final headers = await _getHeaders();
-    final rawResponse = await http.post(
-      Uri.parse('$baseUrl/roles/'),
-      headers: headers,
-      body: jsonEncode({'role_id': roleId, 'role_name': roleName}),
-    );
-    final response = _handleResponse(rawResponse);
-    return response.statusCode == 201;
-  }
-
-  // 5. Unified Committee Action
-  static Future<bool> handleCommitteeAction(
-    String requestId,
-    String actionName,
-  ) async {
-    final headers = await _getHeaders();
-    final rawResponse = await http.post(
-      Uri.parse('$baseUrl/committee-requests/$requestId/action/'),
-      headers: headers,
-      body: jsonEncode({'action': actionName}),
-    );
-    final response = _handleResponse(rawResponse);
-    return response.statusCode == 200;
-  }
-
-  // Financials Endpoint: /api/admin/reports/financials/
-  static Future<Map<String, dynamic>> getFinancialsReport({
-    String? societyId,
-    String? month,
-  }) async {
-    final headers = await _getHeaders();
-    final params = <String, String>{};
-    if (societyId != null && societyId.isNotEmpty) {
-      params['society_id'] = societyId;
-    }
-    if (month != null && month.isNotEmpty) params['month'] = month;
-
-    final uri = Uri.parse(
-      '$baseUrl/reports/financials/',
-    ).replace(queryParameters: params.isEmpty ? null : params);
-    final rawResponse = await http.get(uri, headers: headers);
-    final response = _handleResponse(rawResponse);
-    return jsonDecode(response.body);
-  }
-
-  // Security & Complaints Endpoint: /api/admin/reports/security-complaints/
-  static Future<Map<String, dynamic>> getSecurityComplaintsReport({
-    String? societyId,
-  }) async {
-    final headers = await _getHeaders();
-    final uri = Uri.parse('$baseUrl/reports/security-complaints/').replace(
-      queryParameters: (societyId != null && societyId.isNotEmpty)
-          ? {'society_id': societyId}
-          : null,
-    );
-    final rawResponse = await http.get(uri, headers: headers);
-    final response = _handleResponse(rawResponse);
-    return jsonDecode(response.body);
-  }
-
-  // Operations & Visitors Endpoint: /api/admin/reports/operations/
-  static Future<Map<String, dynamic>> getOperationsReport({
-    String? societyId,
-  }) async {
-    final headers = await _getHeaders();
-    final uri = Uri.parse('$baseUrl/reports/operations/').replace(
-      queryParameters: (societyId != null && societyId.isNotEmpty)
-          ? {'society_id': societyId}
-          : null,
-    );
-    final rawResponse = await http.get(uri, headers: headers);
-    final response = _handleResponse(rawResponse);
-    return jsonDecode(response.body);
-  }
-
-  // Scenario 1: Super Admin assigns initial role directly
-  // Scenario 1: Super Admin assigns initial role directly
   static Future<bool> assignInitialRole(String userId, String roleId) async {
     final headers = await _getHeaders();
     final rawResponse = await http.post(
@@ -463,7 +382,6 @@ class ApiService {
     if (response.statusCode == 200) {
       return true;
     } else {
-      // Decode and surface the exact backend message
       try {
         final errorData = jsonDecode(response.body);
         final errorMessage = errorData is Map
@@ -479,7 +397,6 @@ class ApiService {
     }
   }
 
-  // Scenario 2: Super Admin initiates a committee change (requires Chairman approval)
   static Future<bool> createCommitteeChangeRequest(
     String targetUserId,
     String newRoleId,
@@ -494,7 +411,6 @@ class ApiService {
     return response.statusCode == 201;
   }
 
-  // Fetch Occupancy Records for a specific society
   static Future<List<dynamic>> getOccupancies({String? societyId}) async {
     final headers = await _getHeaders();
     final url = societyId != null && societyId.isNotEmpty
@@ -509,7 +425,6 @@ class ApiService {
     throw Exception('Failed to load occupancy data');
   }
 
-  // Update Tenant Status (Emergency Override: 'terminated', 'evicted', 'inactive')
   static Future<bool> updateTenantStatus(String tenantId, String status) async {
     final headers = await _getHeaders();
     final rawResponse = await http.patch(
@@ -525,6 +440,31 @@ class ApiService {
       try {
         final err = jsonDecode(response.body);
         throw Exception(err['error'] ?? 'Failed to update tenant status');
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception('Server error (${response.statusCode})');
+      }
+    }
+  }
+
+  static Future<bool> registerSecurity(Map<String, dynamic> data) async {
+    final headers = await _getHeaders();
+    final rawResponse = await http.post(
+      Uri.parse('$baseUrl/users/register-security/'),
+      headers: headers,
+      body: jsonEncode(data),
+    );
+    final response = _handleResponse(rawResponse);
+
+    if (response.statusCode == 201) {
+      return true;
+    } else {
+      try {
+        final err = jsonDecode(response.body);
+        final errorMessage = err is Map
+            ? (err['error'] ?? err['detail'] ?? err.values.first.toString())
+            : 'Failed to register security guard';
+        throw Exception(errorMessage);
       } catch (e) {
         if (e is Exception) rethrow;
         throw Exception('Server error (${response.statusCode})');

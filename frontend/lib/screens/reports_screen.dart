@@ -367,16 +367,110 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
     }
 
+    double maxExpense = 0;
+    for (var e in expenses) {
+      final amt = ((e['amount'] ?? 0) as num).toDouble();
+      if (amt > maxExpense) maxExpense = amt;
+    }
+    if (maxExpense == 0) maxExpense = 1000;
+    final maxY = maxExpense * 1.25; // 25% headroom for top labels
+
     return _cardContainer(
       title: 'Total Monthly Expenses (₹)',
       child: SizedBox(
         height: 220,
         child: BarChart(
           BarChartData(
-            gridData: const FlGridData(show: false),
+            maxY: maxY,
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              horizontalInterval: (maxY / 4).clamp(1, double.infinity),
+              getDrawingHorizontalLine: (val) =>
+                  FlLine(color: Colors.grey.shade200, strokeWidth: 1),
+            ),
+            borderData: FlBorderData(
+              show: true,
+              border: Border(
+                bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+                left: BorderSide(color: Colors.grey.shade300, width: 1),
+              ),
+            ),
+            barTouchData: BarTouchData(
+              enabled: true,
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (group) => Colors.blueGrey.shade900,
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  return BarTooltipItem(
+                    '₹${rod.toY.toStringAsFixed(0)}',
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  );
+                },
+              ),
+            ),
             titlesData: FlTitlesData(
-              leftTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
+              // 1. Show Left Y-Axis Numbers (e.g., 5k, 10k, 25k)
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 45,
+                  interval: (maxY / 4).clamp(1, double.infinity),
+                  getTitlesWidget: (val, _) {
+                    if (val == 0)
+                      return const Text(
+                        '0',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      );
+                    if (val >= 100000) {
+                      return Text(
+                        '${(val / 100000).toStringAsFixed(1)}L',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      );
+                    }
+                    if (val >= 1000) {
+                      return Text(
+                        '${(val / 1000).toStringAsFixed(0)}k',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      );
+                    }
+                    return Text(
+                      '${val.toInt()}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    );
+                  },
+                ),
+              ),
+              // 2. Month Labels along the Bottom
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (val, _) {
+                    int idx = val.toInt();
+                    if (idx >= 0 && idx < expenses.length) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          expenses[idx]['month'] ?? '',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox();
+                  },
+                ),
               ),
               topTitles: const AxisTitles(
                 sideTitles: SideTitles(showTitles: false),
@@ -384,28 +478,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
               rightTitles: const AxisTitles(
                 sideTitles: SideTitles(showTitles: false),
               ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (val, _) {
-                    int idx = val.toInt();
-                    if (idx >= 0 && idx < expenses.length) {
-                      return Text(expenses[idx]['month'] ?? '');
-                    }
-                    return const SizedBox();
-                  },
-                ),
-              ),
             ),
             barGroups: expenses.asMap().entries.map((e) {
+              final double amount = ((e.value['amount'] ?? 0) as num)
+                  .toDouble();
               return BarChartGroupData(
                 x: e.key,
+                showingTooltipIndicators: [0],
                 barRods: [
                   BarChartRodData(
-                    toY: ((e.value['amount'] ?? 0) as num).toDouble(),
-                    color: Colors.blueAccent,
-                    width: 28,
-                    borderRadius: BorderRadius.circular(4),
+                    toY: amount,
+                    color: const Color(0xFF2563EB),
+                    width: 32,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(6),
+                    ),
                   ),
                 ],
               );
@@ -523,7 +610,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withValues(alpha:0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -546,7 +633,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(

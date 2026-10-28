@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart'; // Enables clean paths without the '#' hash
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'services/session_manager.dart';
 
-// Global navigation key for routing from service layer
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
+  // Removes '/#/' from Flutter Web URLs
+  usePathUrlStrategy();
   runApp(const SocietyAdminApp());
 }
 
@@ -16,14 +18,35 @@ class SocietyAdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: navigatorKey, // Register navigator key
+      navigatorKey: navigatorKey,
       title: 'Smart Society Admin Panel',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         fontFamily: 'Segoe UI',
       ),
-      home: const AuthWrapper(),
+      // Default entry route for browser
+      initialRoute: '/admin/login',
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/admin/login':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const AuthWrapper(),
+            );
+          case '/admin/dashboard':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const DashboardRouteWrapper(),
+            );
+          default:
+            // Fallback redirect to /admin/login
+            return MaterialPageRoute(
+              settings: const RouteSettings(name: '/admin/login'),
+              builder: (_) => const AuthWrapper(),
+            );
+        }
+      },
     );
   }
 }
@@ -51,6 +74,28 @@ class AuthWrapper extends StatelessWidget {
               return const LoginScreen();
             },
           );
+        }
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
+class DashboardRouteWrapper extends StatelessWidget {
+  const DashboardRouteWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: SessionManager.getAdminProfile(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasData && snapshot.data != null) {
+          return DashboardScreen(adminData: snapshot.data!);
         }
         return const LoginScreen();
       },

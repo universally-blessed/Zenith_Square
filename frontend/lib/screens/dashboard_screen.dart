@@ -4,7 +4,6 @@ import './reports_screen.dart';
 import './users_screen.dart';
 import './socities_screen.dart';
 import '../services/session_manager.dart';
-import './login_screen.dart';
 import 'profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -100,11 +99,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPressed: () async {
                       await SessionManager.clearSession();
                       if (mounted) {
-                        Navigator.pushAndRemoveUntil(
+                        Navigator.pushNamedAndRemoveUntil(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
-                          ),
+                          '/admin/login',
                           (route) => false,
                         );
                       }

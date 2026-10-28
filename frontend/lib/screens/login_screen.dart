@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import 'dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -58,17 +57,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final res = await ApiService.login(
+      await ApiService.login(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
+        Navigator.pushNamedAndRemoveUntil(
           context,
-          MaterialPageRoute(
-            builder: (context) => DashboardScreen(adminData: res),
-          ),
+          '/admin/dashboard',
           (route) => false,
         );
       }

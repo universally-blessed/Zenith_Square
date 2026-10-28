@@ -92,10 +92,10 @@ class SocietySerializer(serializers.ModelSerializer):
             'max_value': 'Late fee percentage cannot exceed 100%.'
         }
     )
-    billing_cycle = serializers.ChoiceField(
-        choices=['Monthly', 'Quarterly', 'Yearly'],
-        default='Monthly',
-        error_messages={'invalid_choice': 'Billing cycle must be Monthly, Quarterly, or Yearly.'}
+    billing_cycle = serializers.CharField(
+        required=False,
+        default='MONTHLY',
+        error_messages={'blank': 'Billing cycle cannot be blank.'}
     )
     society_status = serializers.ChoiceField(
         choices=['active', 'inactive'],
@@ -105,6 +105,12 @@ class SocietySerializer(serializers.ModelSerializer):
     class Meta:
         model = Societies
         fields = '__all__'
+
+    def validate_billing_cycle(self, value):
+        cleaned = value.strip().upper()
+        if cleaned not in ['MONTHLY', 'QUARTERLY', 'YEARLY']:
+            raise serializers.ValidationError('Billing cycle must be MONTHLY, QUARTERLY, or YEARLY.')
+        return cleaned
 
     def validate_society_phone(self, value):
         cleaned = re.sub(r'[^0-9]', '', value)
@@ -160,9 +166,26 @@ class UserManagementSerializer(serializers.ModelSerializer):
         error_messages={'invalid': 'Enter a valid email address.'}
     )
 
+    society_name = serializers.CharField(source='society.society_name', read_only=True, default='-')
+    society_id = serializers.CharField(source='society.society_id', read_only=True, default='-')
+    role_name = serializers.CharField(source='role.role_name', read_only=True, default='Resident')
+    role_id = serializers.CharField(source='role.role_id', read_only=True, default=None)
+
     class Meta:
         model = Users
-        fields = ['user_id', 'society', 'user_name', 'user_phone', 'user_email', 'role', 'is_active']
+        fields = [
+            'user_id', 
+            'society', 
+            'society_id',
+            'society_name', 
+            'user_name', 
+            'user_phone', 
+            'user_email', 
+            'role', 
+            'role_id',
+            'role_name', 
+            'is_active'
+        ]
         extra_kwargs = {'password': {'write_only': True, 'required': False}}
 
     def validate_user_phone(self, value):
@@ -211,3 +234,52 @@ class TenantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
         fields = '__all__'
+
+
+class SecurityRegistrationSerializer(serializers.Serializer):
+    society_id = serializers.CharField(
+        required=True,
+        error_messages={'required': 'Society selection is required.'}
+    )
+    user_name = serializers.CharField(
+        max_length=100,
+        min_length=2,
+        trim_whitespace=True,
+        error_messages={'required': 'Security guard name is required.'}
+    )
+    user_phone = serializers.CharField(
+        max_length=10,
+        min_length=10,
+        trim_whitespace=True,
+        error_messages={'required': '10-digit phone number is required.'}
+    )
+    user_email = serializers.EmailField(
+        required=True,
+        error_messages={
+            'required': 'Email address is required for OTP password resets.',
+            'blank': 'Email cannot be blank.',
+            'invalid': 'Enter a valid email address.'
+        }
+    )
+    password = serializers.CharField(
+        min_length=6,
+        write_only=True,
+        error_messages={'required': 'Initial login password is required.'}
+    )
+
+    def validate_user_phone(self, value):
+        cleaned = value.strip()
+        if Users.objects.filter(user_phone=cleaned).exists():
+            raise serializers.ValidationError('A user with this mobile number is already registered.')
+        return cleaned
+
+    def validate_user_email(self, value):
+        cleaned = value.strip().lower()
+        if Users.objects.filter(user_email=cleaned).exists():
+            raise serializers.ValidationError('A user with this email address is already registered.')
+        return cleaned
+
+    def validate_society_id(self, value):
+        if not Societies.objects.filter(society_id=value).exists():
+            raise serializers.ValidationError('Selected society does not exist.')
+        return value

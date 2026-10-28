@@ -9,21 +9,30 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
-from django.db.models import Sum, Count, Q, Case, When, IntegerField
+from django.db.models import Sum, Count, Q, Case, When, IntegerField, Avg, F, ExpressionWrapper, DurationField
 from django.db.models.functions import TruncMonth
+from django.contrib.auth.hashers import make_password
 from .authentication import AdminJWTAuthentication
-from .models import Admin, Societies, SocietyCommittee,SocietyFeatures, Flats,Blocks,Occupancy,Users, CommitteeChange, SocietyExpenses, MaintenanceBill, Complaint, VisitorLogs, Feedback,Roles,Tenant
-from .serializers import AdminLoginSerializer, SocietySerializer, SocietyFeaturesSerializer, UserManagementSerializer, CommitteeChangeSerializer,RoleSerializer,OccupancySerializer,TenantSerializer
+from .models import (
+    Admin, Societies, SocietyCommittee, SocietyFeatures, Flats, Blocks, 
+    Occupancy, Users, CommitteeChange, SocietyExpenses, MaintenanceBill, 
+    Complaint, VisitorLogs, Feedback, Roles, Tenant
+)
+from .serializers import (
+    AdminLoginSerializer, SocietySerializer, SocietyFeaturesSerializer, 
+    UserManagementSerializer, CommitteeChangeSerializer, RoleSerializer, 
+    OccupancySerializer, TenantSerializer, SecurityRegistrationSerializer
+)
 from .permissions import IsSuperAdmin
 
 JWT_SECRET = getattr(settings, 'SECRET_KEY', 'default_secret_society_admin')
 JWT_ALGORITHM = 'HS256'
 
 
-# 1. Admin Authentication
 class AdminLoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
+
     def post(self, request):
         serializer = AdminLoginSerializer(data=request.data)
         if serializer.is_valid():
@@ -32,9 +41,8 @@ class AdminLoginView(APIView):
             try:
                 admin = Admin.objects.get(a_email=email, a_password=password)
                 
-                # Payload with 24-hour expiration
                 payload = {
-                    'admin_id': admin.a_id,
+                    'admin_id': str(admin.a_id),
                     'username': admin.a_username,
                     'email': admin.a_email,
                     'exp': datetime.now(timezone.UTC) + timedelta(hours=24),
@@ -55,8 +63,7 @@ class AdminLoginView(APIView):
                 return Response({"error": "Invalid email or password"}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# 2. Society Management CRUD
-# 2. Society Management CRUD
+
 class SocietyViewSet(viewsets.ModelViewSet):
     queryset = Societies.objects.all()
     serializer_class = SocietySerializer
@@ -65,19 +72,16 @@ class SocietyViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # 1. Extract society data, embedded feature flags, and blocks hierarchy
         society_data = request.data.copy()
         has_block_sec = society_data.pop('has_block_secretary', False)
         has_nominee = society_data.pop('has_nominee', True)
         has_sec = society_data.pop('has_security', True)
         blocks_data = society_data.pop('blocks', [])
 
-        # 2. Save Society
         serializer = self.get_serializer(data=society_data)
         serializer.is_valid(raise_exception=True)
         society = serializer.save()
 
-        # 3. Automatically create matching SocietyFeatures row (max 5 chars for config_id)
         config_id = f"C{society.society_id.replace('SOC', '')}"[:5].ljust(5, '0')
         SocietyFeatures.objects.create(
             config_id=config_id,
@@ -87,7 +91,6 @@ class SocietyViewSet(viewsets.ModelViewSet):
             has_security=has_sec
         )
 
-        # 4. Generate Blocks and Flats with strictly <= 5-character IDs
         block_counter = Blocks.objects.count() + 1
         flat_counter = Flats.objects.count() + 1
 
@@ -96,7 +99,6 @@ class SocietyViewSet(viewsets.ModelViewSet):
             if not block_name:
                 continue
 
-            # Ensure unique 5-char block_id (e.g., 'B0001')
             block_id = f"B{str(block_counter).zfill(4)}"[:5]
             while Blocks.objects.filter(block_id=block_id).exists():
                 block_counter += 1
@@ -109,7 +111,6 @@ class SocietyViewSet(viewsets.ModelViewSet):
             )
             block_counter += 1
 
-            # Extract and create flats under this block
             flats_list = b_item.get('flats', [])
             for f_item in flats_list:
                 flat_num = str(f_item.get('flat_number', '')).strip()
@@ -118,7 +119,6 @@ class SocietyViewSet(viewsets.ModelViewSet):
                 if not flat_num:
                     continue
 
-                # Ensure unique 5-char flat_id (e.g., 'F0001')
                 flat_id = f"F{str(flat_counter).zfill(4)}"[:5]
                 while Flats.objects.filter(flat_id=flat_id).exists():
                     flat_counter += 1
@@ -137,7 +137,6 @@ class SocietyViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def toggle_status(self, request, pk=None):
-        """Soft delete / restore society status"""
         society = self.get_object()
         society.society_status = 'inactive' if society.society_status == 'active' else 'active'
         society.save()
@@ -146,7 +145,7 @@ class SocietyViewSet(viewsets.ModelViewSet):
             "society_status": society.society_status
         }, status=status.HTTP_200_OK)
 
-# 3. Society Feature Configuration
+
 class SocietyFeaturesViewSet(viewsets.ModelViewSet):
     queryset = SocietyFeatures.objects.all()
     serializer_class = SocietyFeaturesSerializer
@@ -161,11 +160,8 @@ class SocietyFeaturesViewSet(viewsets.ModelViewSet):
         return queryset
 
 
-# 4. Global User Management
-# views.py -> Inside UserManagementViewSet
-
 class UserManagementViewSet(viewsets.ModelViewSet):
-    http_method_names = ['get', 'post','put', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'put', 'patch', 'head', 'options']
     queryset = Users.objects.all().select_related('society', 'role')
     serializer_class = UserManagementSerializer
     authentication_classes = [AdminJWTAuthentication]
@@ -186,12 +182,6 @@ class UserManagementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='assign-initial-role')
     @transaction.atomic
     def assign_initial_role(self, request, pk=None):
-        """
-        Direct role assignment for bootstrap scenario.
-        Allowed ONLY if the society does not yet have an active Chairman.
-        Once an active Chairman exists, all committee appointments must 
-        go through the two-way dual approval process.
-        """
         user = self.get_object()
         role_id = request.data.get('role_id')
         
@@ -206,54 +196,87 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         if not user.society:
             return Response({'error': 'User must belong to a society before receiving a committee role.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if an active Chairman already exists for this society
-        has_active_chairman = SocietyCommittee.objects.filter(
+        if new_role.role_name.strip().lower() != 'chairman':
+            return Response({
+                'success': False,
+                'error': "Direct initial assignment is restricted exclusively to the 'Chairman' role. Other roles must be delegated via standard committee change requests."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        existing_chairman = SocietyCommittee.objects.filter(
             society=user.society,
             role__role_name__iexact='Chairman',
             status='Active'
-        ).exists()
+        ).first()
 
-        is_assigning_committee_role = new_role.role_name.lower() in [
-            'chairman', 'secretary', 'treasurer', 'committee member'
-        ]
-
-        # If a Chairman already exists, block direct assignment for any committee role
-        if has_active_chairman and is_assigning_committee_role:
+        if existing_chairman:
             return Response({
                 'success': False,
                 'error': (
-                    f"'{user.society.society_name}' already has an active Chairman. "
-                    "All subsequent committee appointments or changes must be initiated "
-                    "via dual approval (Committee Change Request)."
+                    f"'{user.society.society_name}' already has an active Chairman ({existing_chairman.user.user_name}). "
+                    "All subsequent role changes must be initiated via dual approval (Committee Change Request)."
                 )
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Update User's role
         user.role = new_role
         user.save()
 
-        # 2. If assigning the bootstrap Chairman (or any committee role prior to Chairman lock), record in SocietyCommittee
-        if is_assigning_committee_role:
-            SocietyCommittee.objects.update_or_create(
-                user=user,
-                society=user.society,
-                defaults={
-                    'committee_id': str(uuid.uuid4())[:6].upper(),
-                    'role': new_role,
-                    'election_date': timezone.now().date(),
-                    'status': 'Active'
-                }
-            )
+        SocietyCommittee.objects.update_or_create(
+            user=user,
+            society=user.society,
+            defaults={
+                'committee_id': str(uuid.uuid4())[:6].upper(),
+                'role': new_role,
+                'election_date': timezone.now().date(),
+                'status': 'Active'
+            }
+        )
 
         return Response({
             'success': True,
-            'message': f"Role '{new_role.role_name}' assigned directly to {user.user_name}.",
+            'message': f"{user.user_name} has been successfully appointed as the initial Chairman for {user.society.society_name}.",
             'user': UserManagementSerializer(user).data
         }, status=status.HTTP_200_OK)
 
-    
-# 5. Committee Change Requests
-# views.py -> Replace CommitteeChangeViewSet
+    @action(detail=False, methods=['post'], url_path='register-security')
+    @transaction.atomic
+    def register_security(self, request):
+        serializer = SecurityRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        society = Societies.objects.get(society_id=data['society_id'])
+        
+        security_role, _ = Roles.objects.get_or_create(
+            role_name__iexact='Security',
+            defaults={
+                'role_id': f"R{str(Roles.objects.count() + 1).zfill(4)}"[:5],
+                'role_name': 'Security'
+            }
+        )
+
+        user_counter = Users.objects.count() + 1
+        user_id = f"U{str(user_counter).zfill(4)}"[:5]
+        while Users.objects.filter(user_id=user_id).exists():
+            user_counter += 1
+            user_id = f"U{str(user_counter).zfill(4)}"[:5]
+
+        security_user = Users.objects.create(
+            user_id=user_id,
+            society=society,
+            user_name=data['user_name'],
+            user_phone=data['user_phone'],
+            user_email=data['user_email'],
+            role=security_role,
+            password=make_password(data['password']),
+            is_active=True
+        )
+
+        return Response({
+            'success': True,
+            'message': f"Security Guard {security_user.user_name} registered successfully for {society.society_name}.",
+            'user': UserManagementSerializer(security_user).data
+        }, status=status.HTTP_201_CREATED)
+
 class CommitteeChangeViewSet(viewsets.ModelViewSet):
     queryset = CommitteeChange.objects.all().order_by('-request_id')
     serializer_class = CommitteeChangeSerializer
@@ -261,10 +284,6 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsSuperAdmin]
 
     def create(self, request, *args, **kwargs):
-        """
-        Super Admin initiates a committee role change.
-        Status is set to 'Pending_Chairman_Approval' so the Chairman must approve on the app.
-        """
         target_user_id = request.data.get('target_user')
         new_role_id = request.data.get('new_role')
 
@@ -274,14 +293,25 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        target_user = Users.objects.get(user_id=target_user_id)
-        new_role = Roles.objects.get(role_id=new_role_id)
+        try:
+            target_user = Users.objects.get(user_id=target_user_id)
+            new_role = Roles.objects.get(role_id=new_role_id)
+        except (Users.DoesNotExist, Roles.DoesNotExist) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        req_id = f"REQ{str(uuid.uuid4())[:6].upper()}"[:10]
+        while CommitteeChange.objects.filter(request_id=req_id).exists():
+            req_id = f"REQ{str(uuid.uuid4())[:6].upper()}"[:10]
+
+        # Populate the admin field with the logged-in Admin instance who created the request
+        admin_obj = request.user if isinstance(request.user, Admin) else None
 
         change_req = CommitteeChange.objects.create(
-            request_id=f"REQ{str(uuid.uuid4())[:6].upper()}",
-            requested_by=None,  # Initiated by Super Admin
+            request_id=req_id,
+            requested_by=None,  # Leave NULL since requested_by points to Users table
             target_user=target_user,
             new_role=new_role,
+            admin=admin_obj,    # <--- Saves the logged-in Admin ID immediately into admin_id
             status='Pending_Chairman_Approval'
         )
 
@@ -303,10 +333,8 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Super Admin approves requests created by Chairman."""
         req_obj = self.get_object()
 
-        # Enforce direction: Admin can only approve requests pending Admin approval
         if req_obj.status == 'Pending_Chairman_Approval':
             return Response({
                 'success': False,
@@ -319,36 +347,80 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
                 'error': f'Cannot process request with current status: {req_obj.status}.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Update status
         req_obj.status = 'Approved'
+        if isinstance(request.user, Admin):
+            req_obj.admin = request.user
         req_obj.save()
 
-        # 2. Apply role to User
         target_user = req_obj.target_user
-        if target_user and req_obj.new_role:
-            target_user.role = req_obj.new_role
+        new_role = req_obj.new_role
+        today = timezone.now().date()
+
+        if target_user and new_role:
+            target_user.role = new_role
             target_user.save()
 
-            # 3. Update SocietyCommittee
             society = target_user.society
             if society:
-                comm_member, _ = SocietyCommittee.objects.get_or_create(
-                    user=target_user,
-                    society=society,
-                    defaults={
-                        'committee_id': str(uuid.uuid4())[:6].upper(),
-                        'role': req_obj.new_role,
-                        'election_date': timezone.now().date(),
-                        'status': 'Active'
-                    }
-                )
-                comm_member.role = req_obj.new_role
-                comm_member.status = 'Active'
-                comm_member.save()
+                leadership_roles = [
+                    'chairman', 
+                    'secretary', 
+                    'treasurer', 
+                    'block secretary', 
+                    'committee member'
+                ]
+                is_leadership = new_role.role_name.strip().lower() in leadership_roles
+
+                if is_leadership:
+                    # Close out the term for the previous role-holder in this society
+                    if new_role.role_name.strip().lower() in ['chairman', 'secretary', 'treasurer']:
+                        previous_members = SocietyCommittee.objects.filter(
+                            society=society,
+                            role=new_role,
+                            status='Active'
+                        ).exclude(user=target_user)
+
+                        for prev_mem in previous_members:
+                            prev_mem.term_end = today
+                            prev_mem.status = 'Terminated'
+                            prev_mem.save()
+
+                    # Update or create the target user's active committee membership
+                    comm_member = SocietyCommittee.objects.filter(
+                        user=target_user, 
+                        society=society
+                    ).first()
+
+                    if comm_member:
+                        comm_member.role = new_role
+                        comm_member.status = 'Active'
+                        comm_member.election_date = today
+                        comm_member.term_end = None
+                        comm_member.save()
+                    else:
+                        SocietyCommittee.objects.create(
+                            committee_id=str(uuid.uuid4())[:6].upper(),
+                            user=target_user,
+                            society=society,
+                            role=new_role,
+                            election_date=today,
+                            status='Active'
+                        )
+                else:
+                    # Terminate active committee term if demoted to non-leadership
+                    active_memberships = SocietyCommittee.objects.filter(
+                        user=target_user, 
+                        society=society,
+                        status='Active'
+                    )
+                    for mem in active_memberships:
+                        mem.term_end = today
+                        mem.status = 'Terminated'
+                        mem.save()
 
         return Response({
             'success': True,
-            'message': 'Committee role change approved and applied.',
+            'message': f"Role shift to '{new_role.role_name}' approved and committee records synchronized.",
             'request': CommitteeChangeSerializer(req_obj).data
         }, status=status.HTTP_200_OK)
 
@@ -364,6 +436,8 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         req_obj.status = 'Rejected'
+        if isinstance(request.user, Admin):
+            req_obj.admin = request.user
         req_obj.save()
 
         return Response({
@@ -371,8 +445,7 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
             'message': 'Committee role change request rejected.',
             'request': CommitteeChangeSerializer(req_obj).data
         }, status=status.HTTP_200_OK)
-
-# 6. Executive MIS Report Analytics Endpoint
+        
 class AdminReportsView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
@@ -380,7 +453,6 @@ class AdminReportsView(APIView):
     def get(self, request):
         society_id = request.query_params.get('society_id')
 
-        # 1. Base Querysets
         flats_qs = Flats.objects.all()
         occupancy_qs = Occupancy.objects.all()
         expenses_qs = SocietyExpenses.objects.all()
@@ -388,7 +460,6 @@ class AdminReportsView(APIView):
         complaints_qs = Complaint.objects.all()
         visitors_qs = VisitorLogs.objects.all()
 
-        # Dynamic filter by society if selected
         if society_id:
             flats_qs = flats_qs.filter(block__society_id=society_id)
             occupancy_qs = occupancy_qs.filter(flat__block__society_id=society_id)
@@ -397,19 +468,16 @@ class AdminReportsView(APIView):
             complaints_qs = complaints_qs.filter(block__society_id=society_id)
             visitors_qs = visitors_qs.filter(flat__block__society_id=society_id)
 
-        # 2. Dynamic Occupancy Breakdown
         total_flats = flats_qs.count()
         owner_count = occupancy_qs.filter(occupancy_type__iexact='Owner').count()
         tenant_count = occupancy_qs.filter(occupancy_type__iexact='Tenant').count()
         vacant_count = max(0, total_flats - (owner_count + tenant_count))
 
-        # 3. Dynamic Overall Financial KPIs
         total_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0.0
         total_bills = bills_qs.count()
         paid_bills = bills_qs.filter(status__iexact='paid').count()
         collection_rate = round((paid_bills / total_bills * 100), 1) if total_bills > 0 else 0.0
 
-        # 4. Dynamic Monthly Expenses Trend (Grouped by payment_date)
         expense_by_month = expenses_qs.annotate(
             month_date=TruncMonth('payment_date')
         ).values('month_date').annotate(
@@ -424,7 +492,6 @@ class AdminReportsView(APIView):
             for item in expense_by_month
         ]
 
-        # 5. Dynamic Monthly Collection Rate Trend (Grouped by due_date or bill_month)
         bill_by_month = bills_qs.annotate(
             month_date=TruncMonth('due_date')
         ).values('month_date').annotate(
@@ -440,11 +507,23 @@ class AdminReportsView(APIView):
             for item in bill_by_month
         ]
 
-        # 6. Dynamic Complaints & SLA Resolution
         filed_count = complaints_qs.count()
-        resolved_count = complaints_qs.filter(status__iexact='resolved').count()
+        resolved_qs = complaints_qs.filter(
+            status__iexact='resolved',
+            created_at__isnull=False,
+            resolved_at__isnull=False
+        )
+        resolved_count = resolved_qs.count()
 
-        # 7. Dynamic Monthly Visitor Traffic (Grouped by entry_time)
+        avg_duration = resolved_qs.annotate(
+            duration=ExpressionWrapper(
+                F('resolved_at') - F('created_at'),
+                output_field=DurationField()
+            )
+        ).aggregate(avg_time=Avg('duration'))['avg_time']
+
+        avg_resolution_days = round(avg_duration.total_seconds() / 86400, 1) if avg_duration else 0.0
+
         visitor_by_month = visitors_qs.annotate(
             month_date=TruncMonth('entry_time')
         ).values('month_date').annotate(
@@ -475,12 +554,13 @@ class AdminReportsView(APIView):
             "complaints": {
                 "filed": filed_count,
                 "resolved": resolved_count,
-                "avg_resolution_days": 3  # Calculated or default
+                "avg_resolution_days": avg_resolution_days
             },
             "visitors": {
                 "monthly_traffic": monthly_visitors
             }
         }, status=status.HTTP_200_OK)
+
 
 class AdminProfileView(APIView):
     authentication_classes = [AdminJWTAuthentication]
@@ -501,16 +581,13 @@ class AdminProfileView(APIView):
         current_password = request.data.get('current_password')
         new_password = request.data.get('new_password')
 
-        # 1. Update basic info
         if username:
             admin.a_username = username
         if email:
-            # Check unique email constraint
             if Admin.objects.filter(a_email=email).exclude(a_id=admin.a_id).exists():
                 return Response({"error": "Email is already in use by another admin."}, status=status.HTTP_400_BAD_REQUEST)
             admin.a_email = email
 
-        # 2. Password change logic
         if new_password:
             if len(new_password) < 6:
                 return Response({"error": "New password must be at least 6 characters long."}, status=status.HTTP_400_BAD_REQUEST)
@@ -533,7 +610,7 @@ class AdminProfileView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
-# views.py -> AdminOverviewDashboardView
+
 class AdminOverviewDashboardView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
@@ -543,11 +620,9 @@ class AdminOverviewDashboardView(APIView):
         total_users = Users.objects.count()
         active_societies_count = Societies.objects.filter(society_status__iexact='active').count()
 
-        # Split pending counts
         pending_admin_count = CommitteeChange.objects.filter(status='Pending_Admin_Approval').count()
         pending_chairman_count = CommitteeChange.objects.filter(status='Pending_Chairman_Approval').count()
 
-        # Fetch requests that need attention (prioritize requests awaiting Admin action)
         pending_requests = CommitteeChange.objects.filter(
             status__in=['Pending_Admin_Approval', 'Pending_Chairman_Approval']
         ).select_related('requested_by', 'target_user', 'new_role', 'target_user__society').order_by(
@@ -618,21 +693,22 @@ class AdminOverviewDashboardView(APIView):
             "recent_users": recent_users_data,
             "recent_feedbacks": recent_feedbacks_data
         }, status=status.HTTP_200_OK)
-    
+
+
 class RoleViewSet(viewsets.ModelViewSet):
     queryset = Roles.objects.all()
     serializer_class = RoleSerializer
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
 
-# 1. Financial Analytics View
+
 class AdminFinancialsReportView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
 
     def get(self, request):
         society_id = request.query_params.get('society_id')
-        month = request.query_params.get('month')  # e.g., '2026-05' or '05'
+        month = request.query_params.get('month')
 
         expenses_qs = SocietyExpenses.objects.all()
         bills_qs = MaintenanceBill.objects.all()
@@ -642,8 +718,7 @@ class AdminFinancialsReportView(APIView):
             bills_qs = bills_qs.filter(flat__block__society_id=society_id)
 
         if month:
-            # Filter by month if passed
-            if '-' in month:  # YYYY-MM
+            if '-' in month:
                 year, m = month.split('-')
                 expenses_qs = expenses_qs.filter(payment_date__year=year, payment_date__month=m)
                 bills_qs = bills_qs.filter(due_date__year=year, due_date__month=m)
@@ -656,7 +731,6 @@ class AdminFinancialsReportView(APIView):
         paid_bills = bills_qs.filter(status__iexact='paid').count()
         collection_rate = round((paid_bills / total_bills * 100), 1) if total_bills > 0 else 0.0
 
-        # Monthly Expense Trend
         expense_by_month = expenses_qs.annotate(
             month_date=TruncMonth('payment_date')
         ).values('month_date').annotate(total=Sum('amount')).order_by('month_date')
@@ -666,7 +740,6 @@ class AdminFinancialsReportView(APIView):
             for item in expense_by_month
         ]
 
-        # Monthly Collection Trend
         bill_by_month = bills_qs.annotate(
             month_date=TruncMonth('due_date')
         ).values('month_date').annotate(
@@ -688,7 +761,6 @@ class AdminFinancialsReportView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-# 2. Security & Complaints View
 class AdminSecurityComplaintsReportView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
@@ -701,18 +773,31 @@ class AdminSecurityComplaintsReportView(APIView):
             complaints_qs = complaints_qs.filter(block__society_id=society_id)
 
         total_complaints = complaints_qs.count()
-        resolved_count = complaints_qs.filter(status__iexact='resolved').count()
-        pending_count = total_complaints - resolved_count
+        resolved_qs = complaints_qs.filter(
+            status__iexact='resolved',
+            created_at__isnull=False,
+            resolved_at__isnull=False
+        )
+        resolved_count = resolved_qs.count()
+        pending_count = total_complaints - complaints_qs.filter(status__iexact='resolved').count()
+
+        avg_duration = resolved_qs.annotate(
+            duration=ExpressionWrapper(
+                F('resolved_at') - F('created_at'),
+                output_field=DurationField()
+            )
+        ).aggregate(avg_time=Avg('duration'))['avg_time']
+
+        avg_resolution_days = round(avg_duration.total_seconds() / 86400, 1) if avg_duration else 0.0
 
         return Response({
             "total_complaints": total_complaints,
             "resolved": resolved_count,
             "pending": pending_count,
-            "avg_resolution_days": 3
+            "avg_resolution_days": avg_resolution_days
         }, status=status.HTTP_200_OK)
 
 
-# 3. Operations & Visitors View
 class AdminOperationsReportView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
@@ -739,12 +824,8 @@ class AdminOperationsReportView(APIView):
             "amenity_bookings_count": 0
         }, status=status.HTTP_200_OK)
 
-# views.py
-from .models import Occupancy, Tenant
-from .serializers import OccupancySerializer, TenantSerializer
 
 class OccupancyViewSet(viewsets.ReadOnlyModelViewSet):
-    """Read-only view for platform-level occupancy audits."""
     queryset = Occupancy.objects.select_related('flat__block__society', 'resident__user').all()
     serializer_class = OccupancySerializer
     authentication_classes = [AdminJWTAuthentication]
@@ -757,8 +838,8 @@ class OccupancyViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(flat__block__society_id=society_id)
         return qs
 
+
 class TenantViewSet(viewsets.ModelViewSet):
-    """Allows Super Admin to audit tenants or terminate/evict in disputes."""
     http_method_names = ['get', 'patch', 'head', 'options']
     queryset = Tenant.objects.select_related('user', 'owner', 'flat__block__society').all()
     serializer_class = TenantSerializer

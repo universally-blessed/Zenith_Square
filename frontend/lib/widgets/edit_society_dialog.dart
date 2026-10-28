@@ -51,7 +51,7 @@ class _EditSocietyDialogState extends State<EditSocietyDialog> {
     _lateFeeController = TextEditingController(
       text: (s['late_fee_percent'] ?? 5.0).toString(),
     );
-    _billingCycle = (s['billing_cycle'] ?? 'MONTHLY').toString().toUpperCase();
+    _billingCycle = (s['billing_cycle'] ?? 'Monthly').toString().toUpperCase();
     _societyStatus = s['society_status'] ?? 'active';
   }
 
