@@ -82,6 +82,7 @@ class _ChairmanPollsScreenState extends State<ChairmanPollsScreen> {
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
 
     try {
       final res = await CommunityApiService.deletePoll(pollId);

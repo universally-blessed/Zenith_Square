@@ -52,7 +52,7 @@ class ComplaintListCreateView(APIView):
                 return Response({'success': False, 'error': 'Resident flat mapping missing.'}, status=status.HTTP_404_NOT_FOUND)
 
             complaint = Complaint.objects.create(
-                complaint_id=str(uuid.uuid4())[:5].upper(),  # <--- Changed to 5 characters max
+                complaint_id=str(uuid.uuid4())[:5].upper(), 
                 resident=resident,
                 block=resident.flat.block,
                 title=serializer.validated_data['title'],

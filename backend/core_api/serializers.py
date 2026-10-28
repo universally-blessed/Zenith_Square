@@ -64,20 +64,19 @@ class RegisterResidentSerializer(serializers.Serializer):
     blockId = serializers.CharField(max_length=5, required=False, allow_blank=True, allow_null=True)
     flatNumber = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
     flatId = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
-    occupancyType = serializers.ChoiceField(
-        choices=['Owner', 'Tenant'],
-        default='Owner'
-    )
 
     def validate_phone(self, value):
-        if not re.match(r'^[6-9]\d{9}$', value):
-            raise serializers.ValidationError('Enter a valid 10-digit Indian mobile number.')
+        if not re.match(r'^\d{10}$', value):
+            raise serializers.ValidationError('Enter a valid 10-digit mobile number.')
         return value
+
+    def validate_email(self, value):
+        if ' ' in value:
+            raise serializers.ValidationError('Email address must not contain spaces.')
+        return value.strip()
 
 
 # 1. Profile Serializer (Read & Update)
-# In core_api/serializers.py
-
 class UserProfileSerializer(serializers.ModelSerializer):
     society_id = serializers.CharField(source='society.society_id', read_only=True)
     society_name = serializers.CharField(source='society.society_name', read_only=True)
@@ -134,6 +133,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['user_id', 'user_phone', 'society_id']
 
+    def validate_user_email(self, value):
+        if ' ' in value:
+            raise serializers.ValidationError('Email address must not contain spaces.')
+        return value.strip()
+
     def get_flat_number(self, obj):
         resident = Resident.objects.filter(user=obj).first()
         return resident.flat.flat_number if (resident and resident.flat) else None
@@ -175,6 +179,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return False
         config = SocietyFeatures.objects.filter(society=obj.society).first()
         return config.has_block_secretary if (config and config.has_block_secretary is not None) else False
+
 
 # 2. Change Password Serializer
 class ChangePasswordSerializer(serializers.Serializer):
@@ -258,6 +263,11 @@ class NomineeSerializer(serializers.ModelSerializer):
         read_only_fields = ['nominee_id']
 
     def validate_phone(self, value):
-        if not re.match(r'^[6-9]\d{9}$', value):
+        if not re.match(r'^\d{10}$', value):
             raise serializers.ValidationError('Enter a valid 10-digit mobile number.')
         return value
+
+    def validate_email(self, value):
+        if value and ' ' in value:
+            raise serializers.ValidationError('Email address must not contain spaces.')
+        return value.strip() if value else value

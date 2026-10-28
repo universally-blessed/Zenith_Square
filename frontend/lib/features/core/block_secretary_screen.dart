@@ -259,7 +259,7 @@ class _BlockSecretaryHomeScreenState extends State<BlockSecretaryHomeScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.2,
+        childAspectRatio: 1.35,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {

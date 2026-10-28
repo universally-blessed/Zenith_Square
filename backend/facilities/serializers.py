@@ -251,6 +251,12 @@ class VehicleSerializer(serializers.ModelSerializer):
 
     def validate_vehicle_number(self, value):
         cleaned = re.sub(r'[^A-Za-z0-9]', '', value).upper()
+
+        # Must match standard Indian plate structure (e.g., GJ01AB1234)
         if len(cleaned) < 6 or len(cleaned) > 12:
             raise serializers.ValidationError('Enter a valid vehicle registration number (e.g. GJ01AB1234).')
+
+        if not re.match(r'^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$', cleaned):
+            raise serializers.ValidationError('Vehicle number must follow standard state format (e.g., GJ01AB1234).')
+
         return cleaned

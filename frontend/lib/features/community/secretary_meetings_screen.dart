@@ -369,24 +369,22 @@ class _SecretaryMeetingsScreenState extends State<SecretaryMeetingsScreen> {
                   minutesDoc: minutesController.text.trim(),
                   agenda: agendaController.text.trim(),
                 );
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(res['message'] ?? 'Meeting updated!'),
-                      backgroundColor: Colors.green.shade700,
-                    ),
-                  );
-                  _loadMeetings();
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(res['message'] ?? 'Meeting updated!'),
+                    backgroundColor: Colors.green.shade700,
+                  ),
+                );
+                _loadMeetings();
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString().replaceAll('Exception: ', '')),
-                      backgroundColor: Colors.red.shade700,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
               }
             },
             child: const Text('Save Minutes'),

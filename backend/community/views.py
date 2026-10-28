@@ -111,7 +111,7 @@ class SocietyCommitteeListView(APIView):
         committee_members = SocietyCommittee.objects.filter(
             society=society, 
             status='Active'
-        ).exclude(role_id='R01')
+        ).exclude(role_id__in=['R01','R0006','R0007','R0008'] )
         
         return Response({
             'success': True,
@@ -539,7 +539,6 @@ class TenantListCreateView(APIView):
 
         data = serializer.validated_data
 
-        # Correctly lookup the single flat instance selected by flat_id
         flat = Flats.objects.filter(flat_id=data['flat_id'], block__society=request.user.society).first()
         if not flat:
             return Response({'success': False, 'error': 'Selected flat was not found in your society.'}, status=status.HTTP_404_NOT_FOUND)
@@ -555,19 +554,28 @@ class TenantListCreateView(APIView):
             if primary_res:
                 owner = primary_res.user
 
+        # Create or update Tenant User account
         tenant_user = Users.objects.filter(user_phone=data['tenant_phone']).first()
+        if tenant_user and tenant_user.role.role_id != 'R0006':
+            return Response({'success': False, 'error': 'A non-tenant account with this contact number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
         if not tenant_user:
             default_role = Roles.objects.filter(role_id='R01').first() or request.user.role
-            tenant_user = Users.objects.create(
+            tenant_user = Users.objects.create_user(
                 user_id=str(uuid.uuid4())[:5].upper(),
                 society=request.user.society,
                 user_name=data['tenant_name'],
                 user_phone=data['tenant_phone'],
                 user_email=data.get('tenant_email'),
                 role=default_role,
-                password='pbkdf2_sha256$default_temporary_hash',
-                is_active=True
+                is_active=True  # Directly active
             )
+            tenant_user.set_password(data['tenant_password'])
+            tenant_user.save()
+        else:
+            # If user already exists, update password and ensure active status
+            tenant_user.set_password(data['tenant_password'])
+            tenant_user.is_active = True
+            tenant_user.save()
 
         tenant_resident = Resident.objects.filter(user=tenant_user, flat=flat).first()
         if not tenant_resident:
@@ -599,7 +607,7 @@ class TenantListCreateView(APIView):
 
         return Response({
             'success': True,
-            'message': 'Tenant registered successfully!',
+            'message': 'Tenant registered successfully with active login credentials!',
             'tenant': TenantSerializer(new_tenant).data
         }, status=status.HTTP_201_CREATED)
 
@@ -654,7 +662,7 @@ class AvailableRolesListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        roles = Roles.objects.exclude(role_name__iexact='Admin').order_by('role_id')
+        roles = Roles.objects.order_by('role_id')
         role_data = [{'role_id': r.role_id, 'role_name': r.role_name} for r in roles]
         return Response({'success': True, 'roles': role_data}, status=status.HTTP_200_OK)
 

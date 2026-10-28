@@ -40,7 +40,7 @@ class RegisterResidentView(APIView):
         if Users.objects.filter(user_email=data['email']).exists():
             return Response({'success': False, 'error': 'Email address already registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Create User
+        # 1. Create User with role 'R01' (Resident)
         generated_user_id = str(uuid.uuid4())[:5].upper()
         default_role, _ = Roles.objects.get_or_create(role_id='R01', defaults={'role_name': 'resident'})
 
@@ -56,9 +56,8 @@ class RegisterResidentView(APIView):
         user.set_password(data['password'])
         user.save()
 
-        # 2. Look up Flat (supports both block-based query and legacy formats)
+        # 2. Look up Flat
         flat_number_val = data.get('flatNumber') or data.get('flatId', '')
-        # Remove any stray 'A-' or 'B-' prefix if passed
         clean_flat_num = flat_number_val.split('-')[-1].strip()
         block_id_val = data.get('blockId')
 
@@ -69,7 +68,6 @@ class RegisterResidentView(APIView):
                 flat_number__in=[clean_flat_num, flat_number_val]
             ).first()
 
-        # Fallback to direct flat_id or society-wide search if block wasn't matched
         if not flat_obj:
             flat_obj = Flats.objects.filter(
                 flat_number__in=[clean_flat_num, flat_number_val],
@@ -82,7 +80,7 @@ class RegisterResidentView(APIView):
                 'error': f'Flat {flat_number_val} could not be found in the selected block/society.'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        # 3. Create Resident
+        # 3. Create Resident entry
         resident = Resident.objects.create(
             resident_id=str(uuid.uuid4())[:6].upper(),
             user=user,
@@ -90,22 +88,15 @@ class RegisterResidentView(APIView):
             move_in_date=datetime.date.today()
         )
 
-        # 4. Create Occupancy
-        occupancy_type = data.get('occupancyType', 'Owner')
-        # If registering as Owner, or if no active primary exists, make this resident the primary occupant
-        if occupancy_type == 'Owner':
-            Occupancy.objects.filter(flat=flat_obj).update(is_primary=False)
-            is_primary = True
-        else:
-            has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
-            is_primary = not has_primary
+        # 4. Create Occupancy record (Defaults to 'Owner')
+        has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
 
         Occupancy.objects.create(
             occupancy_id=str(uuid.uuid4())[:5].upper(),
             flat=flat_obj,
             resident=resident,
-            occupancy_type=occupancy_type,
-            is_primary=is_primary
+            occupancy_type='Owner',
+            is_primary=not has_primary
         )
 
         # 5. Generate OTP
@@ -118,7 +109,6 @@ class RegisterResidentView(APIView):
             'success': True,
             'message': 'Profile registered successfully! OTP code generated.'
         }, status=status.HTTP_201_CREATED)
-
 
 class VerifyOTPView(APIView):
     def post(self, request):

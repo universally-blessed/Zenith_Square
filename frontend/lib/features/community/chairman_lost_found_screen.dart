@@ -123,17 +123,19 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                     itemId,
                     selectedStatus,
                   );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          res['message'] ?? 'Status updated successfully!',
-                        ),
-                        backgroundColor: Colors.green.shade700,
+
+                  // Guard immediately after the async API call
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        res['message'] ?? 'Status updated successfully!',
                       ),
-                    );
-                    _loadItems();
-                  }
+                      backgroundColor: Colors.green.shade700,
+                    ),
+                  );
+                  _loadItems();
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -310,8 +312,11 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline,
-                              size: 18, color: Colors.red.shade800),
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: Colors.red.shade800,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -365,9 +370,10 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                             } catch (e) {
                               setModalState(() {
                                 isSubmitting = false;
-                                sheetError = e
-                                    .toString()
-                                    .replaceAll('Exception: ', '');
+                                sheetError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
                               });
                             }
                           },
@@ -515,8 +521,7 @@ class _ChairmanLostFoundScreenState extends State<ChairmanLostFoundScreen> {
                     separatorBuilder: (ctx, i) => const SizedBox(height: 10),
                     itemBuilder: (ctx, i) {
                       final item = filtered[i];
-                      final status =
-                          (item['item_status'] ?? 'Lost').toString();
+                      final status = (item['item_status'] ?? 'Lost').toString();
                       final statusColor = _getStatusColor(status);
                       final reportedBy =
                           item['reported_by_name'] ?? 'Management';

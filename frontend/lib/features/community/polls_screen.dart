@@ -34,13 +34,19 @@ class _PollsScreenState extends State<PollsScreen> {
     );
   }
 
-  Future<void> _handleVote(String pollId, String optionText) async {
+  Future<void> _handleVote(String pollId, List<dynamic> options) async {
     final selectedOptionId = _selectedOptionByPoll[pollId];
     if (selectedOptionId == null) {
       _showToast('Please select an option before submitting', isError: true);
       return;
     }
-
+    final found = options.firstWhere(
+      (o) => o['option_id'] == selectedOptionId,
+      orElse: () => null,
+    );
+    final selectedOptionText = found != null
+        ? (found['option_text'] ?? '')
+        : '';
     // Explicit Confirmation Modal
     final confirmed = await showDialog<bool>(
       context: context,
@@ -61,7 +67,7 @@ class _PollsScreenState extends State<PollsScreen> {
                 border: Border.all(color: Colors.orange.shade200),
               ),
               child: Text(
-                optionText,
+                selectedOptionText,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.orange.shade900,
@@ -98,7 +104,6 @@ class _PollsScreenState extends State<PollsScreen> {
     );
 
     if (confirmed != true) return;
-
     setState(() => _votingPollIds.add(pollId));
 
     try {
@@ -395,10 +400,7 @@ class _PollsScreenState extends State<PollsScreen> {
                                     isSubmitting ||
                                         _selectedOptionByPoll[pollId] == null
                                     ? null
-                                    : () => _handleVote(
-                                        pollId,
-                                        selectedOptionText,
-                                      ),
+                                    : () => _handleVote(pollId, options),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange.shade700,
                                   foregroundColor: Colors.white,

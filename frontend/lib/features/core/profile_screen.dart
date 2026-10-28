@@ -99,7 +99,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final roleName = (_profile?['role_name'] ?? '').toString();
-    final isGuard = roleName.toLowerCase().contains('guard') ||
+    final isGuard =
+        roleName.toLowerCase().contains('guard') ||
         roleName.toLowerCase().contains('security');
 
     return Scaffold(
@@ -160,7 +161,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: isGuard
                                         ? Colors.green.shade100
@@ -170,7 +173,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: Text(
                                     isGuard
                                         ? 'Security Guard'
-                                        : (_profile?['role_name'] ?? 'Resident'),
+                                        : (_profile?['role_name'] ??
+                                              'Resident'),
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
@@ -234,9 +238,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   prefixIcon: Icon(Icons.email_outlined),
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) => (v == null || !v.contains('@'))
-                    ? 'Valid email required'
-                    : null,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Email address is required';
+                  }
+                  if (v.contains(' ')) {
+                    return 'Email address must not contain spaces';
+                  }
+                  final emailRegex = RegExp(
+                    r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                  );
+                  if (!emailRegex.hasMatch(v.trim())) {
+                    return 'Please enter a valid email address';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 

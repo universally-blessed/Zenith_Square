@@ -23,7 +23,11 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
       final role = (profile['role_name'] ?? '').toString().toLowerCase();
       if (mounted) {
         if (role.contains('security') || role.contains('guard')) {
-          Navigator.pushNamedAndRemoveUntil(context, '/security-home', (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/security-home',
+            (route) => false,
+          );
         } else if (role != 'chairman') {
           Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
         }
@@ -251,7 +255,7 @@ class _ChairmanHomeScreenState extends State<ChairmanHomeScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 0.95,
+        childAspectRatio: 0.85,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {

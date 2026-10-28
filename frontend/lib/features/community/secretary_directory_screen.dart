@@ -140,6 +140,9 @@ class _SecretaryResidentsDirectoryTabState
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
+                onChanged: (val) {
+                  setState(() {}); // Rebuild to toggle clear icon
+                },
                 onSubmitted: (val) {
                   setState(() => _searchQuery = val);
                   _fetchDirectory();

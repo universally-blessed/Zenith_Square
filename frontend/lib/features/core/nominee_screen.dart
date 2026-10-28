@@ -116,7 +116,7 @@ class _NomineeScreenState extends State<NomineeScreen> {
     }
 
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+    final phoneRegex = RegExp(r'^\d{10}$');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nominee Management')),
@@ -186,7 +186,7 @@ class _NomineeScreenState extends State<NomineeScreen> {
                   final val = v?.trim() ?? '';
                   if (val.isEmpty) return 'Phone number is required';
                   if (!phoneRegex.hasMatch(val)) {
-                    return 'Enter valid 10-digit mobile (starting with 6-9)';
+                    return 'Enter valid 10-digit mobile';
                   }
                   return null;
                 },
@@ -204,8 +204,12 @@ class _NomineeScreenState extends State<NomineeScreen> {
                 ),
                 validator: (v) {
                   final val = v?.trim() ?? '';
-                  if (val.isNotEmpty && !emailRegex.hasMatch(val)) {
-                    return 'Enter a valid email address';
+                  if (val.isEmpty) return 'Email address is required';
+                  if (val.contains(' ')) {
+                    return 'Email address must not contain spaces';
+                  }
+                  if (!emailRegex.hasMatch(val)) {
+                    return 'Please enter a valid email address';
                   }
                   return null;
                 },

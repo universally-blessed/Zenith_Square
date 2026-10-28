@@ -352,6 +352,14 @@ class CreateTenantSerializer(serializers.Serializer):
         allow_null=True,
         error_messages={'invalid': 'Enter a valid email address.'}
     )
+    tenant_password = serializers.CharField(
+        write_only=True,
+        min_length=6,
+        error_messages={
+            'required': 'Tenant password is required.',
+            'min_length': 'Password must be at least 6 characters long.',
+        }
+    )
     flat_id = serializers.CharField(
         max_length=5,
         error_messages={'required': 'Target flat is required.'}
@@ -373,7 +381,6 @@ class CreateTenantSerializer(serializers.Serializer):
         if not value.isdigit() or len(value) != 10:
             raise serializers.ValidationError('Enter a valid 10-digit numeric contact number.')
         return value
-
 
 class ResidentMemberSerializer(serializers.ModelSerializer):
     user_id = serializers.CharField(source='user.user_id', read_only=True)

@@ -436,36 +436,39 @@ class _SocietyDocumentsScreenState extends State<SocietyDocumentsScreen> {
   }
 
   Future<void> _openDocumentUrl(String urlString) async {
-    if (urlString.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid document link.'),
-          backgroundColor: Colors.red,
-        ),
+    final trimmed = urlString.trim();
+    if (trimmed.isEmpty) {
+      _showErrorSnackBar('Invalid or empty document link.');
+      return;
+    }
+
+    final Uri? url = Uri.tryParse(trimmed);
+    if (url == null || !(url.scheme == 'http' || url.scheme == 'https')) {
+      _showErrorSnackBar(
+        'Invalid URL scheme. Must start with http:// or https://',
       );
       return;
     }
 
-    final Uri url = Uri.parse(urlString.trim());
-
     try {
       final bool launched = await launchUrl(
         url,
-        mode: LaunchMode.platformDefault,
+        mode: LaunchMode.externalApplication,
       );
-
       if (!launched) {
-        throw Exception('Could not launch URL');
+        _showErrorSnackBar('Could not open document link: $trimmed');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open document link: $urlString'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnackBar('Error opening document: ${e.toString()}');
       }
     }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
+    );
   }
 }

@@ -55,11 +55,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Future<void> _handlePasswordReset() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final cleanEmail = widget.email.trim();
+    if (cleanEmail.contains(' ')) {
+      _showError('Invalid email address format (contains spaces)');
+      return;
+    }
     setState(() => _isSubmitting = true);
-
     try {
       final response = await ApiService.confirmPasswordReset(
-        email: widget.email,
+        email: cleanEmail,
         otp: _otpController.text.trim(),
         newPassword: _newPasswordController.text,
       );

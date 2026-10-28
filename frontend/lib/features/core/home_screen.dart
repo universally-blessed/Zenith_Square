@@ -23,11 +23,23 @@ class _HomeScreenState extends State<HomeScreen> {
       final role = (profile['role_name'] ?? '').toString().toLowerCase();
       if (mounted) {
         if (role.contains('security') || role.contains('guard')) {
-          Navigator.pushNamedAndRemoveUntil(context, '/security-home', (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/security-home',
+            (route) => false,
+          );
         } else if (role == 'chairman') {
-          Navigator.pushNamedAndRemoveUntil(context, '/chairman-home', (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/chairman-home',
+            (route) => false,
+          );
         } else if (role == 'treasurer') {
-          Navigator.pushNamedAndRemoveUntil(context, '/treasurer-home', (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/treasurer-home',
+            (route) => false,
+          );
         }
       }
       return profile;
@@ -54,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
-            tooltip: 'Profile & Nominee',
+            tooltip: 'Profile',
             onPressed: () => Navigator.pushNamed(context, '/profile'),
           ),
           IconButton(
@@ -72,6 +84,82 @@ class _HomeScreenState extends State<HomeScreen> {
           final flatNumber = profile['flat_number'] ?? 'Unit --';
           final blockName = profile['block_name'] ?? 'Block --';
           final societyName = profile['society_name'] ?? 'Zenith Square';
+
+          // Role & Occupancy checks
+          final occupancyType = (profile['occupancy_type'] ?? '')
+              .toString()
+              .toLowerCase();
+          final isTenant = occupancyType == 'tenant';
+
+          // Base items available to all users
+          final List<_ActionItem> items = [
+            _ActionItem(
+              'Maintenance',
+              Icons.receipt_long,
+              Colors.indigo,
+              '/finance',
+            ),
+            _ActionItem(
+              'Complaints',
+              Icons.report_problem_outlined,
+              Colors.amber.shade800,
+              '/complaints',
+            ),
+            _ActionItem(
+              'Notices',
+              Icons.campaign_outlined,
+              Colors.teal,
+              '/notices',
+            ),
+            _ActionItem(
+              'Amenities',
+              Icons.pool_outlined,
+              Colors.cyan.shade700,
+              '/amenities',
+            ),
+            _ActionItem(
+              'Vehicles',
+              Icons.directions_car_outlined,
+              Colors.blueGrey,
+              '/vehicles',
+            ),
+            _ActionItem(
+              'Meetings',
+              Icons.groups_outlined,
+              Colors.deepPurple,
+              '/meetings',
+            ),
+            _ActionItem(
+              'Lost & Found',
+              Icons.search_outlined,
+              Colors.brown,
+              '/lost-found',
+            ),
+          ];
+
+          // Owner-only items
+          if (!isTenant) {
+            items.addAll([
+              _ActionItem(
+                'Polls',
+                Icons.how_to_vote_outlined,
+                Colors.orange.shade700,
+                '/polls',
+              ),
+              _ActionItem(
+                'Nominee',
+                Icons.badge_outlined,
+                Colors.blue,
+                '/nominee',
+              ),
+              _ActionItem(
+                'Society Documents',
+                Icons.description_outlined,
+                Colors.indigo,
+                '/society-documents',
+              ),
+            ]);
+          }
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -127,9 +215,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Colors.white24,
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Text(
-                            'Active',
-                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          child: Text(
+                            isTenant ? 'Tenant' : 'Owner',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ],
@@ -195,68 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // 3. Grid Modules
                 _buildSectionTitle('Services & Management'),
                 const SizedBox(height: 8),
-                _buildGrid([
-                  _ActionItem(
-                    'Maintenance',
-                    Icons.receipt_long,
-                    Colors.indigo,
-                    '/finance',
-                  ),
-                  _ActionItem(
-                    'Complaints',
-                    Icons.report_problem_outlined,
-                    Colors.amber.shade800,
-                    '/complaints',
-                  ),
-                  _ActionItem(
-                    'Notices',
-                    Icons.campaign_outlined,
-                    Colors.teal,
-                    '/notices',
-                  ),
-                  _ActionItem(
-                    'Amenities',
-                    Icons.pool_outlined,
-                    Colors.cyan.shade700,
-                    '/amenities',
-                  ),
-                  _ActionItem(
-                    'Vehicles',
-                    Icons.directions_car_outlined,
-                    Colors.blueGrey,
-                    '/vehicles',
-                  ),
-                  _ActionItem(
-                    'Meetings',
-                    Icons.groups_outlined,
-                    Colors.deepPurple,
-                    '/meetings',
-                  ),
-                  _ActionItem(
-                    'Polls',
-                    Icons.how_to_vote_outlined,
-                    Colors.orange.shade700,
-                    '/polls',
-                  ),
-                  _ActionItem(
-                    'Lost & Found',
-                    Icons.search_outlined,
-                    Colors.brown,
-                    '/lost-found',
-                  ),
-                  _ActionItem(
-                    'Nominee',
-                    Icons.badge_outlined,
-                    Colors.blue,
-                    '/nominee',
-                  ),
-                  _ActionItem(
-                    'Society Documents',
-                    Icons.receipt_long,
-                    Colors.indigo,
-                    '/society-documents',
-                  ),
-                ]),
+                _buildGrid(items),
               ],
             ),
           );
@@ -284,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 0.95,
+        childAspectRatio: 0.82,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {

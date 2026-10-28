@@ -104,10 +104,10 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                   ),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(6),
+                    LengthLimitingTextInputFormatter(4),
                   ],
                   decoration: const InputDecoration(
-                    hintText: '------',
+                    hintText: '----',
                     hintStyle: TextStyle(letterSpacing: 8, color: Colors.grey),
                     border: OutlineInputBorder(),
                   ),

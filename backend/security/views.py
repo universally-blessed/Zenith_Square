@@ -69,7 +69,7 @@ class ActiveSecurityAlertsView(APIView):
 
 def is_security_or_management(user):
     role_name = user.role.role_name.lower() if user.role else ''
-    return role_name in ['chairman', 'secretary', 'admin', 'security', 'security guard', 'guard', 'treasurer'] or 'security' in role_name or 'guard' in role_name
+    return role_name in ['chairman', 'secretary', 'admin', 'security','security guard','treasurer'] or 'security' in role_name or 'guard' in role_name
 
 
 # 3. Dismiss / Resolve Emergency Alert (Chairman / Security / Admin / Treasurer)

@@ -30,6 +30,7 @@ class _BlockSecretaryNoticesScreenState
     final titleController = TextEditingController();
     final descController = TextEditingController();
     String selectedPriority = 'normal';
+    String? sheetError;
     bool isSubmitting = false;
 
     showModalBottomSheet(
@@ -71,9 +72,40 @@ class _BlockSecretaryNoticesScreenState
                       ],
                     ),
                     const SizedBox(height: 14),
+                    if (sheetError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 18,
+                              color: Colors.red.shade800,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                sheetError!,
+                                style: TextStyle(
+                                  color: Colors.red.shade900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     TextFormField(
                       controller: titleController,
+                      maxLength: 150,
                       decoration: const InputDecoration(
                         labelText: 'Title *',
                         border: OutlineInputBorder(),
@@ -138,12 +170,17 @@ class _BlockSecretaryNoticesScreenState
                                 }
                               } catch (e) {
                                 setModalState(() => isSubmitting = false);
+                                sheetError = e.toString().replaceAll(
+                                  'Exception: ',
+                                  '',
+                                );
                               }
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.teal.shade900,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
+
                       child: isSubmitting
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
@@ -180,12 +217,13 @@ class _BlockSecretaryNoticesScreenState
       body: FutureBuilder<List<dynamic>>(
         future: _noticesFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
           final notices = snapshot.data ?? [];
-          if (notices.isEmpty)
+          if (notices.isEmpty) {
             return const Center(child: Text('No notices for your block.'));
-
+          }
           return ListView.separated(
             padding: const EdgeInsets.all(12),
             itemCount: notices.length,

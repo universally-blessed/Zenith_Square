@@ -1,5 +1,5 @@
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db.models import Q
 from rest_framework.views import APIView
@@ -8,8 +8,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from core_api.models import Resident
-from finance.models import SocietyExpenses,SocietyIncome
-from .models import Amenity, AmenityBooking, Asset, AssetMaintenance,Vehicle
+from finance.models import SocietyExpenses, SocietyIncome
+from .models import Amenity, AmenityBooking, Asset, AssetMaintenance, Vehicle
 from .serializers import (
     AmenitySerializer,
     AmenityBookingSerializer,
@@ -56,16 +56,7 @@ class AmenityListCreateView(APIView):
         return Response({'success': True, 'message': 'Amenity created!', 'amenity': AmenitySerializer(amenity).data}, status=status.HTTP_201_CREATED)
 
 
-# 2. Book Amenity (Blocks for 1 Hour Under 'pending_payment')
-def auto_expire_stale_bookings():
-    # Both are timezone-aware; clean and warning-free
-    AmenityBooking.objects.filter(
-        status='pending_payment',
-        payment_deadline__isnull=False,
-        payment_deadline__lt=timezone.now()
-    ).update(status='expired')
-
-
+# 2. Book Amenity View
 class BookAmenityView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -78,6 +69,14 @@ class BookAmenityView(APIView):
             return Response({'success': False, 'error': str(first_err)}, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
+        
+        # Validation: Ensure start_time precedes end_time for same-day slots
+        if data['start_time'] >= data['end_time']:
+            return Response({
+                'success': False, 
+                'error': 'Start time must be strictly before end time.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         resident = Resident.objects.filter(user=request.user).first()
         if not resident:
             return Response({'success': False, 'error': 'Resident profile missing.'}, status=status.HTTP_404_NOT_FOUND)
@@ -89,22 +88,34 @@ class BookAmenityView(APIView):
         if amenity.amenity_status != 'available':
             return Response({'success': False, 'error': 'This amenity is currently unavailable.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Conflict check: Overlapping slots with confirmed bookings or active holds
-        overlap = AmenityBooking.objects.filter(
+        # Convert TimeFields to timezone-aware Datetimes for precise boundary comparisons
+        tz = timezone.get_current_timezone()
+        req_start_dt = timezone.make_aware(datetime.combine(data['booking_date'], data['start_time']), tz)
+        req_end_dt = timezone.make_aware(datetime.combine(data['booking_date'], data['end_time']), tz)
+
+        # Fetch active or confirmed bookings for the amenity on that date
+        existing_bookings = AmenityBooking.objects.filter(
             amenity=amenity,
             booking_date=data['booking_date']
         ).filter(
             Q(status='confirmed') | (Q(status='pending_payment') & Q(payment_deadline__gte=timezone.now()))
-        ).filter(
-            Q(start_time__lt=data['end_time']) & Q(end_time__gt=data['start_time'])
-        ).exists()
+        )
+
+        overlap = False
+        for b in existing_bookings:
+            b_start_dt = timezone.make_aware(datetime.combine(b.booking_date, b.start_time), tz)
+            b_end_dt = timezone.make_aware(datetime.combine(b.booking_date, b.end_time), tz)
+            
+            # Check range overlap: max(start1, start2) < min(end1, end2)
+            if max(req_start_dt, b_start_dt) < min(req_end_dt, b_end_dt):
+                overlap = True
+                break
 
         if overlap:
             return Response({'success': False, 'error': 'This time slot is currently booked or held pending payment.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Aware 3-hour deadline
         deadline = timezone.now() + timedelta(hours=3)
-        print(deadline)
         booking = AmenityBooking.objects.create(
             booking_id=str(uuid.uuid4())[:6].upper(),
             amenity=amenity,
@@ -145,13 +156,18 @@ class AmenityBookingsView(APIView):
 class ConfirmAmenityPaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @transaction.atomic
     def post(self, request, booking_id):
+        # Run stale auto-expiry outside the payment confirmation transaction block
         auto_expire_stale_bookings()
+        return self._confirm_payment(request, booking_id)
+
+    @transaction.atomic
+    def _confirm_payment(self, request, booking_id):
         role_name = request.user.role.role_name.lower() if request.user.role else ''
         if role_name not in ['chairman', 'secretary', 'admin']:
             return Response({'success': False, 'error': 'Unauthorized. Chairman/Secretary privilege required.'}, status=status.HTTP_403_FORBIDDEN)
 
+        # Lock booking row for update
         booking = AmenityBooking.objects.select_for_update().filter(
             booking_id=booking_id, 
             amenity__society=request.user.society
@@ -189,7 +205,7 @@ class ConfirmAmenityPaymentView(APIView):
         booking.payment_id = payment_ref
         booking.save()
 
-        # 2. Automatically record in SocietyIncome table
+        # 2. Record in SocietyIncome table
         amenity_name = booking.amenity.amenity_name if booking.amenity else 'Amenity'
 
         SocietyIncome.objects.create(
@@ -198,7 +214,7 @@ class ConfirmAmenityPaymentView(APIView):
             income_type='Amenity Booking',
             amount=paid_amount,
             received_date=timezone.now().date(),
-            description=f"{amenity_name} Booking Charge"
+            description=f"{amenity_name} Booking Charge ({booking.booking_id})"
         )
 
         return Response({
@@ -206,6 +222,7 @@ class ConfirmAmenityPaymentView(APIView):
             'message': f'Payment confirmed (₹{paid_amount}) and logged in Society Income!',
             'booking': AmenityBookingSerializer(booking).data
         }, status=status.HTTP_200_OK)
+
 
 # 5. Cancel Booking (Chairman / Secretary cancels accidental bookings)
 class CancelAmenityBookingView(APIView):
@@ -228,6 +245,8 @@ class CancelAmenityBookingView(APIView):
             'message': 'Booking has been cancelled and slot released.',
             'booking': AmenityBookingSerializer(booking).data
         }, status=status.HTTP_200_OK)
+
+
 class AmenityStatusUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -262,9 +281,9 @@ class AssetDetailDeleteView(APIView):
         if not asset:
             return Response({'success': False, 'error': 'Asset not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Deletes the asset record or archives it
         asset.delete()
         return Response({'success': True, 'message': 'Asset removed successfully!'}, status=status.HTTP_200_OK)
+
 
 # 6. Assets & Maintenance Handlers
 class AssetListCreateView(APIView):
@@ -291,6 +310,7 @@ class AssetListCreateView(APIView):
         )
         return Response({'success': True, 'message': 'Asset registered successfully!', 'asset': AssetSerializer(asset).data}, status=status.HTTP_201_CREATED)
 
+
 class AssetMaintenanceListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -313,11 +333,9 @@ class AssetMaintenanceListCreateView(APIView):
             first_err = next(iter(serializer.errors.values()))[0]
             return Response({'success': False, 'error': str(first_err)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Look up the resident_id associated with the logged-in Chairman
         resident = Resident.objects.filter(user=request.user).first()
         recorded_by_id = resident.resident_id if resident else None
 
-        # 2. Save Asset Maintenance log
         log = AssetMaintenance.objects.create(
             maintenance_id=str(uuid.uuid4())[:6].upper(),
             asset=asset,
@@ -325,7 +343,6 @@ class AssetMaintenanceListCreateView(APIView):
             **serializer.validated_data
         )
 
-        # 3. Automatically create corresponding entry in Society Expenses
         cost = serializer.validated_data['maintenance_cost']
         m_date = serializer.validated_data['maintenance_date']
         desc = serializer.validated_data.get('description', '')
@@ -345,6 +362,7 @@ class AssetMaintenanceListCreateView(APIView):
             'log': AssetMaintenanceSerializer(log).data
         }, status=status.HTTP_201_CREATED)
 
+
 class VehicleListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -353,8 +371,7 @@ class VehicleListCreateView(APIView):
         all_society = request.query_params.get('all', 'false').lower() == 'true'
 
         if all_society:
-            # Society-wide vehicle directory for chairman/secretary/admin and security staff
-            if role_name not in ['chairman', 'secretary', 'admin', 'security', 'guard', 'security guard', 'security_guard', 'treasurer']:
+            if role_name not in ['chairman', 'secretary', 'admin', 'security', 'security guard', 'treasurer']:
                 return Response({
                     'success': False,
                     'error': 'Unauthorized. Security/Chairman privilege required to view all society vehicles.'
@@ -362,7 +379,6 @@ class VehicleListCreateView(APIView):
             
             vehicles = Vehicle.objects.filter(resident__flat__block__society=request.user.society)
         else:
-            # Default: Return only vehicles belonging to the logged-in resident
             resident = Resident.objects.filter(user=request.user).first()
             if not resident:
                 return Response({'success': True, 'vehicles': []}, status=status.HTTP_200_OK)
@@ -385,7 +401,6 @@ class VehicleListCreateView(APIView):
 
         vehicle_num = serializer.validated_data['vehicle_number'].strip().upper()
         
-        # Check duplicate registration within society
         if Vehicle.objects.filter(vehicle_number=vehicle_num, resident__flat__block__society=request.user.society).exists():
             return Response({'success': False, 'error': 'This vehicle number is already registered in this society.'}, status=status.HTTP_400_BAD_REQUEST)
 

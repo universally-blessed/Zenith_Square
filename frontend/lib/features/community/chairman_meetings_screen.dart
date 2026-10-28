@@ -106,6 +106,7 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
 
     try {
       final res = await CommunityApiService.deleteMeeting(meetingId);

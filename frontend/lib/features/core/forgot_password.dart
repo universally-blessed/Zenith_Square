@@ -98,10 +98,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     border: OutlineInputBorder(),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
-                      return 'Please enter your email';
-                    if (!emailRegex.hasMatch(v.trim()))
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Email address is required';
+                    if (val.contains(' ')) {
+                      return 'Email address must not contain spaces';
+                    }
+                    if (!emailRegex.hasMatch(val)) { 
                       return 'Please enter a valid email address';
+                    }
                     return null;
                   },
                 ),

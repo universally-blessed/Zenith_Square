@@ -397,6 +397,7 @@ class CommunityApiService {
   static Future<Map<String, dynamic>> addTenant({
     required String tenantName,
     required String tenantPhone,
+    required String tenantPassword,
     String? tenantEmail,
     required String flatId,
     String? ownerId,
@@ -413,6 +414,7 @@ class CommunityApiService {
       body: jsonEncode({
         'tenant_name': tenantName,
         'tenant_phone': tenantPhone,
+        'tenant_password': tenantPassword,
         'tenant_email': tenantEmail,
         'flat_id': flatId,
         'owner_id': ownerId,
@@ -526,7 +528,9 @@ class CommunityApiService {
         final data = jsonDecode(res.body);
         throw Exception(data['error'] ?? 'Server error (${res.statusCode})');
       } catch (_) {
-        throw Exception('Server error (${res.statusCode}). Please check server logs.');
+        throw Exception(
+          'Server error (${res.statusCode}). Please check server logs.',
+        );
       }
     }
   }
@@ -560,7 +564,9 @@ class CommunityApiService {
     } else {
       try {
         final data = jsonDecode(res.body);
-        throw Exception(data['error'] ?? 'Failed to upload document (${res.statusCode})');
+        throw Exception(
+          data['error'] ?? 'Failed to upload document (${res.statusCode})',
+        );
       } catch (_) {
         throw Exception('Server error (${res.statusCode})');
       }
@@ -589,7 +595,9 @@ class CommunityApiService {
     } else {
       try {
         final data = jsonDecode(res.body);
-        throw Exception(data['error'] ?? 'Failed to delete document (${res.statusCode})');
+        throw Exception(
+          data['error'] ?? 'Failed to delete document (${res.statusCode})',
+        );
       } catch (_) {
         throw Exception('Server error (${res.statusCode})');
       }

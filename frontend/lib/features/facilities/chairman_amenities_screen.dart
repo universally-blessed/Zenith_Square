@@ -1995,15 +1995,28 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
   }
 
   Future<TimeOfDay?> _pickTime(BuildContext context, TimeOfDay initial) async {
-    return await showTimePicker(
+    return showTimePicker(
       context: context,
       initialTime: initial,
+      useRootNavigator: true,
       initialEntryMode: TimePickerEntryMode.dial,
       builder: (BuildContext context, Widget? child) {
-        return MediaQuery(
-          // Prevent layout compression from modal view insets
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
-          child: child!,
+        return Theme(
+          data: Theme.of(context).copyWith(
+            timePickerTheme: TimePickerThemeData(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              alwaysUse24HourFormat: false,
+              textScaler: const TextScaler.linear(1.0),
+              size: const Size(400, 800),
+            ),
+            child: child!,
+          ),
         );
       },
     );

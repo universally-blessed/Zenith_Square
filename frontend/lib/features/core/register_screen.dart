@@ -23,7 +23,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<Society> _societies = [];
   List<Block> _blocks = [];
 
-  String _selectedOccupancyType = 'Owner';
   String? _selectedSocietyId;
   String? _selectedBlockId;
 
@@ -118,7 +117,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'blockId': _selectedBlockId,
         'flatNumber': cleanFlatNumber,
         'flatId': cleanFlatNumber,
-        'occupancyType': _selectedOccupancyType,
       };
       final response = await ApiService.registerResident(payload);
 
@@ -158,7 +156,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+    final phoneRegex = RegExp(r'^\d{10}$');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Resident Registration')),
@@ -214,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     final val = v?.trim() ?? '';
                     if (val.isEmpty) return 'Please enter phone number';
                     if (!phoneRegex.hasMatch(val)) {
-                      return 'Enter valid 10-digit mobile (starts with 6-9)';
+                      return 'Enter valid 10-digit mobile';
                     }
                     return null;
                   },
@@ -234,7 +232,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (v) {
                     final val = v?.trim() ?? '';
-                    if (val.isEmpty) return 'Please enter email';
+                    if (val.isEmpty) return 'Email address is required';
+                    if (val.contains(' ')) {
+                      return 'Email address must not contain spaces';
+                    }
                     if (!emailRegex.hasMatch(val)) {
                       return 'Please enter a valid email address';
                     }
@@ -321,26 +322,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Please enter flat number'
                       : null,
-                ),
-                const SizedBox(height: 14),
-
-                _buildFieldLabel('Occupancy Type', isRequired: true),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  value: _selectedOccupancyType,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.person_pin_outlined),
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'Owner', child: Text('Owner')),
-                    DropdownMenuItem(value: 'Tenant', child: Text('Tenant')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedOccupancyType = val);
-                    }
-                  },
                 ),
                 const SizedBox(height: 14),
 

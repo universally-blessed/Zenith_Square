@@ -14,6 +14,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _maintenanceController = TextEditingController();
 
   List<dynamic> _flats = [];
@@ -21,6 +22,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
   DateTime _moveInDate = DateTime.now();
   bool _isLoading = false;
   bool _loadingFlats = true;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -34,6 +36,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     _maintenanceController.dispose();
     super.dispose();
   }
@@ -101,6 +104,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
       await CommunityApiService.addTenant(
         tenantName: _nameController.text.trim(),
         tenantPhone: _phoneController.text.trim(),
+        tenantPassword: _passwordController.text,
         tenantEmail: _emailController.text.trim().isEmpty
             ? null
             : _emailController.text.trim(),
@@ -113,7 +117,9 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tenant added successfully!')),
+          const SnackBar(
+            content: Text('Tenant added successfully! Account is active.'),
+          ),
         );
         Navigator.pop(context, true);
       }
@@ -188,6 +194,38 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
                     ),
                     const SizedBox(height: 14),
 
+                    _buildFieldLabel('Tenant Login Password', isRequired: true),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        hintText: 'Set login password (min 6 chars)',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Please enter password for tenant account';
+                        }
+                        if (v.length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
                     _buildFieldLabel('Email Address (Optional)'),
                     const SizedBox(height: 6),
                     TextFormField(
@@ -213,8 +251,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
                     _buildFieldLabel('Select Flat', isRequired: true),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      value:
-                          _selectedFlatId, // Changed from initialValue to value
+                      value: _selectedFlatId,
                       isExpanded: true,
                       items: _flats.map<DropdownMenuItem<String>>((f) {
                         return DropdownMenuItem<String>(
@@ -300,7 +337,6 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // INLINE ERROR BANNER
                     if (_errorMessage != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
