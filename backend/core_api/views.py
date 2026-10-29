@@ -34,29 +34,14 @@ class RegisterResidentView(APIView):
 
         data = serializer.validated_data
 
+        # Check existing registered active/inactive users in database
         if Users.objects.filter(user_phone=data['phone']).exists():
             return Response({'success': False, 'error': 'Phone number already registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if Users.objects.filter(user_email=data['email']).exists():
             return Response({'success': False, 'error': 'Email address already registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Create User with role 'R01' (Resident)
-        generated_user_id = str(uuid.uuid4())[:5].upper()
-        default_role, _ = Roles.objects.get_or_create(role_id='R01', defaults={'role_name': 'resident'})
-
-        user = Users.objects.create_user(
-            user_id=generated_user_id,
-            user_name=data['name'],
-            user_phone=data['phone'],
-            user_email=data['email'],
-            society_id=data['societyId'],
-            role=default_role,
-            is_active=False
-        )
-        user.set_password(data['password'])
-        user.save()
-
-        # 2. Look up Flat
+        # Validate Flat Existence BEFORE sending OTP
         flat_number_val = data.get('flatNumber') or data.get('flatId', '')
         clean_flat_num = flat_number_val.split('-')[-1].strip()
         block_id_val = data.get('blockId')
@@ -80,35 +65,26 @@ class RegisterResidentView(APIView):
                 'error': f'Flat {flat_number_val} could not be found in the selected block/society.'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        # 3. Create Resident entry
-        resident = Resident.objects.create(
-            resident_id=str(uuid.uuid4())[:6].upper(),
-            user=user,
-            flat=flat_obj,
-            move_in_date=datetime.date.today()
-        )
+        # Prepare registration payload for temporary storage
+        temp_payload = {
+            'name': data['name'],
+            'phone': data['phone'],
+            'email': data['email'],
+            'password': data['password'],
+            'societyId': data['societyId'],
+            'flat_id': flat_obj.flat_id
+        }
 
-        # 4. Create Occupancy record (Defaults to 'Owner')
-        has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
-
-        Occupancy.objects.create(
-            occupancy_id=str(uuid.uuid4())[:5].upper(),
-            flat=flat_obj,
-            resident=resident,
-            occupancy_type='Owner',
-            is_primary=not has_primary
-        )
-
-        # 5. Generate OTP
-        otp_code = TemporaryOTP.generate_otp(data['email'])
+        # Save payload & Generate OTP
+        otp_code = TemporaryOTP.generate_otp(data['email'], registration_data=temp_payload)
         print(f"\n==========================================")
         print(f" [REGISTRATION OTP] {data['email']} -> {otp_code}")
         print(f"==========================================\n")
 
         return Response({
             'success': True,
-            'message': 'Profile registered successfully! OTP code generated.'
-        }, status=status.HTTP_201_CREATED)
+            'message': 'Registration initiated! Please verify your OTP.'
+        }, status=status.HTTP_200_OK)
 
 class VerifyOTPView(APIView):
     def post(self, request):
@@ -118,22 +94,67 @@ class VerifyOTPView(APIView):
         if not email or not otp:
             return Response({'success': False, 'error': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Combined lookup: validates both matching code and 10-minute validity in one query
         cutoff = timezone.now() - datetime.timedelta(minutes=10)
         record = TemporaryOTP.objects.filter(email=email, otp_code=otp, created_at__gte=cutoff).first()
         
         if not record:
             return Response({'success': False, 'error': 'Invalid or expired OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Activate user
-        user = Users.objects.filter(user_email=email).first()
-        if user:
-            user.is_active = True
-            user.save()
+        # Handle Password Reset flow vs Registration flow
+        if record.registration_data:
+            data = json.loads(record.registration_data)
 
-        # 3. Clean up OTP to prevent replay
+            # Re-check uniqueness right before writing to DB
+            if Users.objects.filter(user_phone=data['phone']).exists() or Users.objects.filter(user_email=data['email']).exists():
+                record.delete()
+                return Response({'success': False, 'error': 'Account already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                # Perform atomic DB creation upon OTP success
+                with transaction.atomic():
+                    generated_user_id = str(uuid.uuid4())[:5].upper()
+                    default_role, _ = Roles.objects.get_or_create(role_id='R0002', defaults={'role_name': 'resident'})
+
+                    # 1. Create User as Active
+                    user = Users.objects.create_user(
+                        user_id=generated_user_id,
+                        user_name=data['name'],
+                        user_phone=data['phone'],
+                        user_email=data['email'],
+                        society_id=data['societyId'],
+                        role=default_role,
+                        is_active=True
+                    )
+                    user.set_password(data['password'])
+                    user.save()
+
+                    # 2. Get Flat Object
+                    flat_obj = Flats.objects.get(flat_id=data['flat_id'])
+
+                    # 3. Create Resident
+                    resident = Resident.objects.create(
+                        resident_id=str(uuid.uuid4())[:6].upper(),
+                        user=user,
+                        flat=flat_obj,
+                        move_in_date=datetime.date.today()
+                    )
+
+                    # 4. Create Occupancy
+                    has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
+                    Occupancy.objects.create(
+                        occupancy_id=str(uuid.uuid4())[:5].upper(),
+                        flat=flat_obj,
+                        resident=resident,
+                        occupancy_type='Owner',
+                        is_primary=not has_primary
+                    )
+
+            except Exception as e:
+                return Response({'success': False, 'error': f'Failed to create account: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Clean up OTP record
         record.delete()
-        return Response({'success': True, 'message': 'Account verified successfully!'}, status=status.HTTP_200_OK)
+        return Response({'success': True, 'message': 'Account created & verified successfully!'}, status=status.HTTP_200_OK)
 
 
 class LoginView(APIView):

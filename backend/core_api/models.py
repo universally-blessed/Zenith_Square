@@ -111,6 +111,7 @@ class TemporaryOTP(models.Model):
     id = models.BigAutoField(primary_key=True)
     email = models.CharField(unique=True, max_length=254)
     otp_code = models.CharField(max_length=4)
+    registration_data = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -118,9 +119,14 @@ class TemporaryOTP(models.Model):
         db_table = 'core_api_temporaryotp'
 
     @classmethod
-    def generate_otp(cls, email):
+    def generate_otp(cls, email, registration_data=None):
+        import json
         code = str(random.randint(1000, 9999))
-        cls.objects.update_or_create(email=email, defaults={'otp_code': code})
+        payload_str = json.dumps(registration_data) if registration_data else None
+        cls.objects.update_or_create(
+            email=email, 
+            defaults={'otp_code': code, 'registration_data': payload_str}
+        )
         return code
 
 

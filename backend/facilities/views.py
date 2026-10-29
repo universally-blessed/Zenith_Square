@@ -371,7 +371,7 @@ class VehicleListCreateView(APIView):
         all_society = request.query_params.get('all', 'false').lower() == 'true'
 
         if all_society:
-            if role_name not in ['chairman', 'secretary', 'admin', 'security', 'security guard', 'treasurer']:
+            if role_name not in ['chairman', 'secretary', 'admin', 'security', 'treasurer']:
                 return Response({
                     'success': False,
                     'error': 'Unauthorized. Security/Chairman privilege required to view all society vehicles.'

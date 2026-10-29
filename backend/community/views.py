@@ -111,7 +111,7 @@ class SocietyCommitteeListView(APIView):
         committee_members = SocietyCommittee.objects.filter(
             society=society, 
             status='Active'
-        ).exclude(role_id__in=['R01','R0006','R0007','R0008'] )
+        ).exclude(role_id__in=['R0002','R0006','R0007'] )
         
         return Response({
             'success': True,
@@ -242,7 +242,7 @@ class HandleCommitteeChangeActionView(APIView):
             req_obj.target_user.role = req_obj.new_role
             req_obj.target_user.save()
 
-            if req_obj.new_role.role_id == 'R01':
+            if req_obj.new_role.role_id == 'R0002':
                 SocietyCommittee.objects.filter(user=req_obj.target_user, society=target_society).delete()
             else:
                 comm_member, created = SocietyCommittee.objects.get_or_create(
@@ -559,7 +559,7 @@ class TenantListCreateView(APIView):
         if tenant_user and tenant_user.role.role_id != 'R0006':
             return Response({'success': False, 'error': 'A non-tenant account with this contact number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
         if not tenant_user:
-            default_role = Roles.objects.filter(role_id='R01').first() or request.user.role
+            default_role = Roles.objects.filter(role_id='R0002').first() or request.user.role
             tenant_user = Users.objects.create_user(
                 user_id=str(uuid.uuid4())[:5].upper(),
                 society=request.user.society,
