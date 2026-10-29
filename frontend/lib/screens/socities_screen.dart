@@ -62,6 +62,11 @@ class _SocietiesScreenState extends State<SocietiesScreen> {
       final query = _societySearchQuery.toLowerCase();
       return id.contains(query) || name.contains(query) || city.contains(query);
     }).toList();
+    filteredSocieties.sort(
+      (a, b) => (a['society_id'] ?? '').toString().compareTo(
+        (b['society_id'] ?? '').toString(),
+      ),
+    );
 
     final int totalPages = (filteredSocieties.length / _rowsPerPage).ceil();
     final int startIndex = _societyCurrentPage * _rowsPerPage;

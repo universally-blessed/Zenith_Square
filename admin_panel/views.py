@@ -82,7 +82,10 @@ class SocietyViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         society = serializer.save(created_at=timezone.now())
 
-        config_id = f"C{society.society_id.replace('SOC', '')}"[:5].ljust(5, '0')
+        # FIX: Robust config_id generation to handle 'S' or 'SOC' prefixes and ensure exact 5-char length (VARCHAR(5))
+        numeric_part = society.society_id.replace('SOC', '').replace('S', '')
+        config_id = f"C{numeric_part.zfill(4)}"[:5]
+
         SocietyFeatures.objects.create(
             config_id=config_id,
             society=society,
@@ -277,6 +280,7 @@ class UserManagementViewSet(viewsets.ModelViewSet):
             'user': UserManagementSerializer(security_user).data
         }, status=status.HTTP_201_CREATED)
 
+
 class CommitteeChangeViewSet(viewsets.ModelViewSet):
     queryset = CommitteeChange.objects.all().order_by('-request_id')
     serializer_class = CommitteeChangeSerializer
@@ -303,15 +307,14 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
         while CommitteeChange.objects.filter(request_id=req_id).exists():
             req_id = f"REQ{str(uuid.uuid4())[:6].upper()}"[:10]
 
-        # Populate the admin field with the logged-in Admin instance who created the request
         admin_obj = request.user if isinstance(request.user, Admin) else None
 
         change_req = CommitteeChange.objects.create(
             request_id=req_id,
-            requested_by=None,  # Leave NULL since requested_by points to Users table
+            requested_by=None,
             target_user=target_user,
             new_role=new_role,
-            admin=admin_obj,    # <--- Saves the logged-in Admin ID immediately into admin_id
+            admin=admin_obj,
             status='Pending_Chairman_Approval'
         )
 
@@ -372,7 +375,6 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
                 is_leadership = new_role.role_name.strip().lower() in leadership_roles
 
                 if is_leadership:
-                    # Close out the term for the previous role-holder in this society
                     if new_role.role_name.strip().lower() in ['chairman', 'secretary', 'treasurer']:
                         previous_members = SocietyCommittee.objects.filter(
                             society=society,
@@ -385,7 +387,6 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
                             prev_mem.status = 'Terminated'
                             prev_mem.save()
 
-                    # Update or create the target user's active committee membership
                     comm_member = SocietyCommittee.objects.filter(
                         user=target_user, 
                         society=society
@@ -407,7 +408,6 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
                             status='Active'
                         )
                 else:
-                    # Terminate active committee term if demoted to non-leadership
                     active_memberships = SocietyCommittee.objects.filter(
                         user=target_user, 
                         society=society,
@@ -445,7 +445,8 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
             'message': 'Committee role change request rejected.',
             'request': CommitteeChangeSerializer(req_obj).data
         }, status=status.HTTP_200_OK)
-        
+
+
 class AdminReportsView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
@@ -566,14 +567,6 @@ class AdminProfileView(APIView):
     authentication_classes = [AdminJWTAuthentication]
     permission_classes = [IsSuperAdmin]
 
-    def get(self, request):
-        admin = request.user
-        return Response({
-            "admin_id": admin.a_id,
-            "username": admin.a_username,
-            "email": admin.a_email
-        }, status=status.HTTP_200_OK)
-
     def put(self, request):
         admin = request.user
         username = request.data.get('username')
@@ -582,13 +575,16 @@ class AdminProfileView(APIView):
         new_password = request.data.get('new_password')
 
         if username:
-            admin.a_username = username
+            admin.a_username = username.strip()
         if email:
-            if Admin.objects.filter(a_email=email).exclude(a_id=admin.a_id).exists():
+            cleaned_email = email.strip().lower()
+            if Admin.objects.filter(a_email=cleaned_email).exclude(a_id=admin.a_id).exists():
                 return Response({"error": "Email is already in use by another admin."}, status=status.HTTP_400_BAD_REQUEST)
-            admin.a_email = email
+            admin.a_email = cleaned_email
 
         if new_password:
+            if ' ' in new_password:
+                return Response({"error": "New password cannot contain spaces."}, status=status.HTTP_400_BAD_REQUEST)
             if len(new_password) < 6:
                 return Response({"error": "New password must be at least 6 characters long."}, status=status.HTTP_400_BAD_REQUEST)
             if not current_password:
@@ -597,6 +593,7 @@ class AdminProfileView(APIView):
                 return Response({"error": "Current password does not match."}, status=status.HTTP_400_BAD_REQUEST)
             if new_password == current_password:
                 return Response({"error": "New password must be different from current password."}, status=status.HTTP_400_BAD_REQUEST)
+            
             admin.a_password = new_password
 
         admin.save()

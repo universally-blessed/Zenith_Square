@@ -33,7 +33,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
   String? _dialogError;
 
   // Blocks & Flats Structure
-  final List<Map<String, dynamic>> _blocks = [];
+  final List<dynamic> _blocks = [];
 
   // Generator inputs for block & flats
   final _genBlockNameCtrl = TextEditingController();
@@ -102,7 +102,7 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
       return;
     }
 
-    final List<Map<String, dynamic>> generatedFlats = [];
+    final List generatedFlats = [];
     for (int floor = 1; floor <= floors; floor++) {
       for (int unit = 1; unit <= flatsPerFloor; unit++) {
         final flatNum = '$floor${unit.toString().padLeft(2, '0')}';
@@ -133,6 +133,9 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
       _dialogError = null;
     });
 
+    // Remove all whitespace from email
+    final cleanEmail = _emailController.text.replaceAll(RegExp(r'\s+'), '');
+
     final payload = {
       'society_id': _idController.text.trim().toUpperCase(),
       'society_name': _nameController.text.trim(),
@@ -140,14 +143,12 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
       'society_city': _cityController.text.trim(),
       'society_pincode': _pincodeController.text.trim(),
       'society_phone': _phoneController.text.trim(),
-      'society_email': _emailController.text.trim().isEmpty
-          ? null
-          : _emailController.text.trim(),
+      'society_email': cleanEmail.isEmpty ? null : cleanEmail,
       'standard_rate':
           double.tryParse(_maintenanceRateController.text.trim()) ?? 0.0,
       'late_fee_percent':
           double.tryParse(_lateFeeController.text.trim()) ?? 0.0,
-      'billing_cycle': _billingCycle,
+      'billing_cycle': _billingCycle.toUpperCase(),
       'society_status': 'active',
       'has_block_secretary': _hasBlockSecretary,
       'has_nominee': _hasNominee,
@@ -249,20 +250,18 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                           isDense: true,
                                         ),
                                         validator: (v) {
-                                          final val = v?.trim() ?? '';
+                                          final val =
+                                              v?.trim().toUpperCase() ?? '';
                                           if (val.isEmpty) {
                                             return 'Society ID is required';
                                           }
-                                          if (val.contains(' ')) {
-                                            return 'No spaces allowed';
+                                          if (val.length != 5) {
+                                            return 'Must be exactly 5 characters (e.g. S0001)';
                                           }
                                           if (!RegExp(
-                                            r'^[a-zA-Z0-9]+$',
+                                            r'^S\d{4}$',
                                           ).hasMatch(val)) {
-                                            return 'No special characters allowed';
-                                          }
-                                          if (val.length < 2) {
-                                            return 'Min 2 characters';
+                                            return 'Must follow pattern SXXXX (e.g. S0001)';
                                           }
                                           return null;
                                         },
@@ -473,13 +472,12 @@ class _AddSocietyDialogState extends State<AddSocietyDialog> {
                                           isDense: true,
                                         ),
                                         validator: (v) {
-                                          final val = v ?? '';
-                                          if (val.contains(' ')) {
-                                            return 'Email cannot contain spaces';
-                                          }
-                                          final trimmed = val.trim();
-                                          if (trimmed.isNotEmpty &&
-                                              !emailRegex.hasMatch(trimmed)) {
+                                          final val = (v ?? '').replaceAll(
+                                            RegExp(r'\s+'),
+                                            '',
+                                          );
+                                          if (val.isNotEmpty &&
+                                              !emailRegex.hasMatch(val)) {
                                             return 'Enter a valid email address';
                                           }
                                           return null;

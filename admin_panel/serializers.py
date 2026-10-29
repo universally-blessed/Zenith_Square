@@ -28,6 +28,17 @@ class AdminLoginSerializer(serializers.Serializer):
 
 
 class SocietySerializer(serializers.ModelSerializer):
+    society_id = serializers.CharField(
+        max_length=5,
+        min_length=5,
+        trim_whitespace=True,
+        error_messages={
+            'required': 'Society ID is required.',
+            'blank': 'Society ID cannot be blank.',
+            'max_length': 'Society ID must be exactly 5 characters.',
+            'min_length': 'Society ID must be exactly 5 characters.'
+        }
+    )
     society_name = serializers.CharField(
         max_length=100,
         min_length=2,
@@ -101,16 +112,46 @@ class SocietySerializer(serializers.ModelSerializer):
         choices=['active', 'inactive'],
         default='active'
     )
+    has_security = serializers.SerializerMethodField()
 
     class Meta:
         model = Societies
         fields = '__all__'
         read_only_fields = ['created_at']
 
-    def validate_billing_cycle(self, value):
+    def get_has_security(self, obj):
+        feat = SocietyFeatures.objects.filter(society=obj).first()
+        return feat.has_security if feat else True
+    
+    # FIX: Exclude self.instance so updating the existing society won't fail uniqueness check
+    def validate_society_id(self, value):
         cleaned = value.strip().upper()
+        if not re.match(r'^S\d{4}$', cleaned):
+            raise serializers.ValidationError('Society ID must match format SXXXX (e.g. S0001).')
+        
+        query = Societies.objects.filter(society_id=cleaned)
+        if self.instance:
+            query = query.exclude(society_id=self.instance.society_id)
+            
+        if query.exists():
+            raise serializers.ValidationError('A society with this ID already exists.')
+        return cleaned
+
+    def validate_billing_cycle(self, value):
+        cleaned = str(value).strip().upper()
         if cleaned not in ['MONTHLY', 'QUARTERLY', 'YEARLY']:
             raise serializers.ValidationError('Billing cycle must be MONTHLY, QUARTERLY, or YEARLY.')
+        return cleaned
+
+    def validate_society_email(self, value):
+        if not value:
+            return value
+        cleaned = value.strip().lower()
+        query = Societies.objects.filter(society_email__iexact=cleaned)
+        if self.instance:
+            query = query.exclude(society_id=self.instance.society_id)
+        if query.exists():
+            raise serializers.ValidationError('A society with this email address already exists.')
         return cleaned
 
     def validate_society_phone(self, value):
@@ -281,6 +322,14 @@ class SecurityRegistrationSerializer(serializers.Serializer):
         return cleaned
 
     def validate_society_id(self, value):
-        if not Societies.objects.filter(society_id=value).exists():
+        cleaned = value.strip()
+        try:
+            society = Societies.objects.get(society_id=cleaned)
+        except Societies.DoesNotExist:
             raise serializers.ValidationError('Selected society does not exist.')
-        return value
+
+        feat = SocietyFeatures.objects.filter(society=society).first()
+        if feat and not feat.has_security:
+            raise serializers.ValidationError(f"'{society.society_name}' does not have the Security Guard feature enabled.")
+
+        return cleaned

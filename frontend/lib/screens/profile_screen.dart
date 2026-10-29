@@ -69,6 +69,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final currentPass = _currentPasswordController.text;
+    final newPass = _newPasswordController.text;
+    final confirmPass = _confirmPasswordController.text;
+
+    // Strict Password Validation Guard
+    if (newPass.isNotEmpty ||
+        currentPass.isNotEmpty ||
+        confirmPass.isNotEmpty) {
+      if (currentPass.isEmpty) {
+        setState(
+          () => _errorMessage =
+              'Current password is required to change password.',
+        );
+        return;
+      }
+      if (newPass.isEmpty) {
+        setState(() => _errorMessage = 'New password cannot be empty.');
+        return;
+      }
+      if (newPass.contains(' ')) {
+        setState(() => _errorMessage = 'New password cannot contain spaces.');
+        return;
+      }
+      if (newPass != confirmPass) {
+        setState(
+          () =>
+              _errorMessage = 'New password and confirm password do not match.',
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -78,8 +110,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final res = await ApiService.updateAdminProfile(
         username: _usernameController.text.trim(),
         email: _emailController.text.trim(),
-        currentPassword: _currentPasswordController.text.trim(),
-        newPassword: _newPasswordController.text.trim(),
+        currentPassword: currentPass.isNotEmpty ? currentPass : null,
+        newPassword: newPass.isNotEmpty ? newPass : null,
       );
 
       if (mounted) {
@@ -207,8 +239,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   validator: (v) {
                     final val = v?.trim() ?? '';
                     if (val.isEmpty) return 'Email is required';
-                    if (!emailRegex.hasMatch(val))
+                    if (!emailRegex.hasMatch(val)) {
                       return 'Enter a valid email address';
+                    }
                     return null;
                   },
                 ),
@@ -237,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   validator: (v) {
                     if (_newPasswordController.text.isNotEmpty &&
-                        (v == null || v.trim().isEmpty)) {
+                        (v == null || v.isEmpty)) {
                       return 'Current password required to set a new password';
                     }
                     return null;
@@ -267,12 +300,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               border: OutlineInputBorder(),
                             ),
                             validator: (v) {
-                              final val = v?.trim() ?? '';
-                              if (val.isNotEmpty) {
-                                if (val.length < 6)
+                              if (v != null && v.isNotEmpty) {
+                                if (v.contains(' '))
+                                  return 'Password cannot contain spaces';
+                                if (v.length < 6)
                                   return 'At least 6 characters required';
-                                if (val ==
-                                    _currentPasswordController.text.trim()) {
+                                if (v == _currentPasswordController.text) {
                                   return 'Must differ from current password';
                                 }
                               }
@@ -303,8 +336,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             validator: (v) {
                               if (_newPasswordController.text.isNotEmpty) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Confirm your new password';
+                                }
                                 if (v != _newPasswordController.text) {
                                   return 'Passwords do not match';
                                 }

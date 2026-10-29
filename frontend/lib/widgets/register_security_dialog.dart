@@ -29,11 +29,28 @@ class _RegisterSecurityDialogState extends State<RegisterSecurityDialog> {
   bool _obscurePassword = true;
   String? _dialogError;
 
+  // Filter societies to only show those where has_security is true
+  List<dynamic> get _eligibleSocieties {
+    final filtered = widget.societies.where((s) {
+      final hasSec = s['has_security'];
+      if (hasSec == null) return true; // Default fallback if not provided
+      return hasSec == true || hasSec == 1 || hasSec.toString() == 'true';
+    }).toList();
+
+    filtered.sort(
+      (a, b) => (a['society_id'] ?? '').toString().compareTo(
+        (b['society_id'] ?? '').toString(),
+      ),
+    );
+    return filtered;
+  }
+
   @override
   void initState() {
     super.initState();
-    if (widget.societies.isNotEmpty) {
-      _selectedSocietyId = widget.societies.first['society_id'].toString();
+    final eligible = _eligibleSocieties;
+    if (eligible.isNotEmpty) {
+      _selectedSocietyId = eligible.first['society_id'].toString();
     }
   }
 
@@ -75,7 +92,7 @@ class _RegisterSecurityDialogState extends State<RegisterSecurityDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedSocietyId == null) {
-      setState(() => _dialogError = 'Please select a target society.');
+      setState(() => _dialogError = 'Please select a valid target society.');
       return;
     }
 
@@ -88,7 +105,7 @@ class _RegisterSecurityDialogState extends State<RegisterSecurityDialog> {
       'society_id': _selectedSocietyId,
       'user_name': _nameController.text.trim(),
       'user_phone': _phoneController.text.trim(),
-      'user_email': _emailController.text.trim(),
+      'user_email': _emailController.text.trim().toLowerCase(),
       'password': _passwordController.text.trim(),
     };
 
@@ -118,6 +135,8 @@ class _RegisterSecurityDialogState extends State<RegisterSecurityDialog> {
   @override
   Widget build(BuildContext context) {
     final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+    final eligibleSocieties = _eligibleSocieties;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -146,182 +165,224 @@ class _RegisterSecurityDialogState extends State<RegisterSecurityDialog> {
               const Divider(),
               const SizedBox(height: 12),
 
-              if (_dialogError != null) ...[
+              if (eligibleSocieties.isEmpty) ...[
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.red.shade200),
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade200),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        Icons.error_outline,
-                        size: 16,
-                        color: Colors.red.shade800,
+                        Icons.warning_amber_rounded,
+                        color: Colors.amber.shade900,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _dialogError!,
+                          'No societies currently have the Security Guard feature enabled.',
                           style: TextStyle(
-                            color: Colors.red.shade900,
-                            fontSize: 12,
+                            color: Colors.amber.shade900,
+                            fontSize: 13,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-              ],
-
-              _buildFieldLabel('Assigned Society', isRequired: true),
-              const SizedBox(height: 4),
-              DropdownButtonFormField<String>(
-                value: _selectedSocietyId,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: widget.societies.map<DropdownMenuItem<String>>((s) {
-                  return DropdownMenuItem(
-                    value: s['society_id'].toString(),
-                    child: Text(s['society_name'] ?? s['society_id']),
-                  );
-                }).toList(),
-                onChanged: (v) => setState(() => _selectedSocietyId = v),
-              ),
-              const SizedBox(height: 12),
-
-              _buildFieldLabel('Full Name', isRequired: true),
-              const SizedBox(height: 4),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  hintText: 'Guard Name',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                validator: (v) {
-                  final val = v?.trim() ?? '';
-                  if (val.isEmpty) return 'Name is required';
-                  if (val.length < 2) return 'Min 2 characters';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _buildFieldLabel('Mobile Phone (10 digits)', isRequired: true),
-              const SizedBox(height: 4),
-              TextFormField(
-                controller: _phoneController,
-                maxLength: 10,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  hintText: '9876543210',
-                  border: OutlineInputBorder(),
-                  counterText: '',
-                  isDense: true,
-                ),
-                validator: (v) {
-                  final val = v?.trim() ?? '';
-                  if (val.isEmpty) return 'Phone number is required';
-                  if (val.length != 10) return 'Must be exactly 10 digits';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _buildFieldLabel(
-                'Email (Required for OTP Recovery)',
-                isRequired: true,
-              ),
-              const SizedBox(height: 4),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  hintText: 'security@society.com',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                validator: (v) {
-                  final val = v ?? '';
-                  if (val.contains(' ')) return 'Email cannot contain spaces';
-                  final trimmed = val.trim();
-                  if (trimmed.isEmpty) return 'Email is required';
-                  if (!emailRegex.hasMatch(trimmed)) {
-                    return 'Enter a valid email address';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _buildFieldLabel('Initial Password', isRequired: true),
-              const SizedBox(height: 4),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  hintText: 'Min 6 characters',
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
                   ),
                 ),
-                validator: (v) {
-                  final val = v?.trim() ?? '';
-                  if (val.isEmpty) return 'Password is required';
-                  if (val.length < 6) return 'Min 6 characters';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _submitSecurityForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
+              ] else ...[
+                if (_dialogError != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.red.shade200),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 16,
+                          color: Colors.red.shade800,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _dialogError!,
+                            style: TextStyle(
+                              color: Colors.red.shade900,
+                              fontSize: 12,
                             ),
-                          )
-                        : const Text(
-                            'Register Security',
-                            style: TextStyle(color: Colors.white),
                           ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 12),
                 ],
-              ),
+
+                _buildFieldLabel('Assigned Society', isRequired: true),
+                const SizedBox(height: 4),
+                DropdownButtonFormField<String>(
+                  value: _selectedSocietyId,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: eligibleSocieties.map<DropdownMenuItem<String>>((s) {
+                    return DropdownMenuItem(
+                      value: s['society_id'].toString(),
+                      child: Text(s['society_name'] ?? s['society_id']),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedSocietyId = v),
+                ),
+                const SizedBox(height: 12),
+
+                _buildFieldLabel('Full Name', isRequired: true),
+                const SizedBox(height: 4),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    hintText: 'Guard Name',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Name is required';
+                    if (val.length < 2) return 'Min 2 characters';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                _buildFieldLabel('Mobile Phone (10 digits)', isRequired: true),
+                const SizedBox(height: 4),
+                TextFormField(
+                  controller: _phoneController,
+                  maxLength: 10,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    hintText: '9876543210',
+                    border: OutlineInputBorder(),
+                    counterText: '',
+                    isDense: true,
+                  ),
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Phone number is required';
+                    if (val.length != 10) return 'Must be exactly 10 digits';
+                    if (!phoneRegex.hasMatch(val)) {
+                      return 'Enter a valid 10-digit Indian mobile number';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                _buildFieldLabel(
+                  'Email (Required for OTP Recovery)',
+                  isRequired: true,
+                ),
+                const SizedBox(height: 4),
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    hintText: 'security@society.com',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (v) {
+                    final val = v ?? '';
+                    if (val.contains(' ')) return 'Email cannot contain spaces';
+                    final trimmed = val.trim();
+                    if (trimmed.isEmpty) return 'Email is required';
+                    if (!emailRegex.hasMatch(trimmed)) {
+                      return 'Enter a valid email address';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                _buildFieldLabel('Initial Password', isRequired: true),
+                const SizedBox(height: 4),
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    hintText: 'Min 6 characters',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                  validator: (v) {
+                    final val = v?.trim() ?? '';
+                    if (val.isEmpty) return 'Password is required';
+                    if (val.length < 6) return 'Min 6 characters';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _submitSecurityForm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Register Security',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
