@@ -157,7 +157,7 @@ class Migration(migrations.Migration):
                 ('flat_id', models.CharField(max_length=5, primary_key=True, serialize=False)),
                 ('flat_number', models.CharField(max_length=20)),
                 ('floor_number', models.IntegerField()),
-                ('block', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.blocks')),
+                ('block', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.blocks')),
             ],
             options={
                 'db_table': 'flats',
@@ -170,7 +170,7 @@ class Migration(migrations.Migration):
                 ('receipt_id', models.CharField(max_length=6, primary_key=True, serialize=False)),
                 ('receipt_number', models.CharField(max_length=50, unique=True)),
                 ('generated_at', models.DateTimeField(blank=True, null=True)),
-                ('payment', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.payment')),
+                ('payment', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.payment')),
             ],
             options={
                 'db_table': 'payment_receipt',
@@ -182,7 +182,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('option_id', models.CharField(max_length=5, primary_key=True, serialize=False)),
                 ('option_text', models.CharField(max_length=100)),
-                ('poll', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.polls')),
+                ('poll', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.polls')),
             ],
             options={
                 'db_table': 'polls_option',
@@ -194,7 +194,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('resident_id', models.CharField(max_length=6, primary_key=True, serialize=False)),
                 ('move_in_date', models.DateField()),
-                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.flats')),
+                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.flats')),
             ],
             options={
                 'db_table': 'resident',
@@ -204,7 +204,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='payment',
             name='resident',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident'),
         ),
         migrations.CreateModel(
             name='Occupancy',
@@ -212,8 +212,8 @@ class Migration(migrations.Migration):
                 ('occupancy_id', models.CharField(max_length=5, primary_key=True, serialize=False)),
                 ('occupancy_type', models.CharField(max_length=50)),
                 ('is_primary', models.BooleanField(blank=True, null=True)),
-                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.flats')),
-                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident')),
+                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.flats')),
+                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident')),
             ],
             options={
                 'db_table': 'occupancy',
@@ -229,7 +229,7 @@ class Migration(migrations.Migration):
                 ('phone', models.CharField(max_length=10)),
                 ('email', models.CharField(blank=True, max_length=100, null=True)),
                 ('address', models.TextField()),
-                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident')),
+                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident')),
             ],
             options={
                 'db_table': 'nominee',
@@ -243,7 +243,7 @@ class Migration(migrations.Migration):
                 ('feedback_text', models.TextField()),
                 ('rating', models.IntegerField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(blank=True, null=True)),
-                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident')),
+                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident')),
             ],
             options={
                 'db_table': 'feedback',
@@ -259,8 +259,8 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(blank=True, max_length=20, null=True)),
                 ('created_at', models.DateTimeField(blank=True, null=True)),
                 ('resolved_at', models.DateTimeField(blank=True, null=True)),
-                ('block', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_SET_NULL, to='admin_panel.blocks')),
-                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident')),
+                ('block', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='admin_panel.blocks')),
+                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident')),
             ],
             options={
                 'db_table': 'complaint',
@@ -274,7 +274,7 @@ class Migration(migrations.Migration):
                 ('description', models.TextField()),
                 ('maintenance_date', models.DateField()),
                 ('maintenance_cost', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('asset', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.asset')),
+                ('asset', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.asset')),
                 ('recorded_by', models.ForeignKey(blank=True, db_column='recorded_by', null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='admin_panel.resident')),
             ],
             options={
@@ -292,8 +292,8 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(blank=True, max_length=20, null=True)),
                 ('payment_deadline', models.DateTimeField(blank=True, null=True)),
                 ('payment_id', models.CharField(blank=True, max_length=5, null=True)),
-                ('amenity', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.amenity')),
-                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident')),
+                ('amenity', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.amenity')),
+                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident')),
             ],
             options={
                 'db_table': 'amenity_booking',
@@ -303,17 +303,17 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='blocks',
             name='society',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies'),
         ),
         migrations.AddField(
             model_name='asset',
             name='society',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies'),
         ),
         migrations.AddField(
             model_name='amenity',
             name='society',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies'),
         ),
         migrations.CreateModel(
             name='SocietyExpenses',
@@ -323,7 +323,7 @@ class Migration(migrations.Migration):
                 ('amount', models.DecimalField(decimal_places=2, max_digits=10)),
                 ('payment_date', models.DateField()),
                 ('description', models.TextField(blank=True, null=True)),
-                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies')),
+                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies')),
             ],
             options={
                 'db_table': 'society_expenses',
@@ -337,7 +337,7 @@ class Migration(migrations.Migration):
                 ('has_block_secretary', models.BooleanField(blank=True, null=True)),
                 ('has_nominee', models.BooleanField(blank=True, null=True)),
                 ('has_security', models.BooleanField(blank=True, null=True)),
-                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies')),
+                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies')),
             ],
             options={
                 'db_table': 'society_features',
@@ -357,7 +357,7 @@ class Migration(migrations.Migration):
                 ('is_superuser', models.BooleanField(blank=True, null=True)),
                 ('is_staff', models.BooleanField(blank=True, null=True)),
                 ('role', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='admin_panel.roles')),
-                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies')),
+                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies')),
             ],
             options={
                 'db_table': 'users',
@@ -372,9 +372,9 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(blank=True, max_length=20, null=True)),
                 ('move_in_date', models.DateField()),
                 ('move_out_date', models.DateField(blank=True, null=True)),
-                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.flats')),
+                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.flats')),
                 ('owner', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='tenant_owner_set', to='admin_panel.users')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.users')),
+                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.users')),
             ],
             options={
                 'db_table': 'tenant',
@@ -389,8 +389,8 @@ class Migration(migrations.Migration):
                 ('term_end', models.DateField(blank=True, null=True)),
                 ('status', models.CharField(blank=True, max_length=20, null=True)),
                 ('role', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='admin_panel.roles')),
-                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.users')),
+                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies')),
+                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.users')),
             ],
             options={
                 'db_table': 'society_committee',
@@ -415,16 +415,16 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='resident',
             name='user',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.users'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.users'),
         ),
         migrations.CreateModel(
             name='PollsResponse',
             fields=[
                 ('response_id', models.CharField(max_length=6, primary_key=True, serialize=False)),
                 ('voted_at', models.DateTimeField(blank=True, null=True)),
-                ('option', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.pollsoption')),
-                ('poll', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.polls')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.users')),
+                ('option', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.pollsoption')),
+                ('poll', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.polls')),
+                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.users')),
             ],
             options={
                 'db_table': 'polls_response',
@@ -445,8 +445,8 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(blank=True, null=True)),
                 ('priority', models.CharField(blank=True, max_length=10, null=True)),
                 ('is_active', models.BooleanField(blank=True, null=True)),
-                ('block', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_SET_NULL, to='admin_panel.blocks')),
-                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.societies')),
+                ('block', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='admin_panel.blocks')),
+                ('society', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.societies')),
                 ('created_by', models.ForeignKey(blank=True, db_column='created_by', null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='admin_panel.users')),
             ],
             options={
@@ -460,8 +460,8 @@ class Migration(migrations.Migration):
                 ('message_id', models.UUIDField(primary_key=True, serialize=False)),
                 ('message_text', models.TextField()),
                 ('timestamp', models.DateTimeField()),
-                ('receiver', models.ForeignKey(on_delete=django.db.models.deletion.DB_CASCADE, related_name='messages_receiver_set', to='admin_panel.users')),
-                ('sender', models.ForeignKey(on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.users')),
+                ('receiver', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='messages_receiver_set', to='admin_panel.users')),
+                ('sender', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='admin_panel.users')),
             ],
             options={
                 'db_table': 'messages',
@@ -493,7 +493,7 @@ class Migration(migrations.Migration):
                 ('payable_amount', models.DecimalField(decimal_places=2, max_digits=10)),
                 ('due_date', models.DateField()),
                 ('status', models.CharField(blank=True, max_length=20, null=True)),
-                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.flats')),
+                ('flat', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.flats')),
                 ('payer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='admin_panel.users')),
             ],
             options={
@@ -540,7 +540,7 @@ class Migration(migrations.Migration):
                 ('vehicle_number', models.CharField(max_length=20, unique=True)),
                 ('vehicle_type', models.CharField(max_length=20)),
                 ('vehicle_allotment_number', models.CharField(max_length=50)),
-                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DB_CASCADE, to='admin_panel.resident')),
+                ('resident', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='admin_panel.resident')),
             ],
             options={
                 'db_table': 'vehicle',

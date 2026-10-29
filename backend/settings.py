@@ -14,6 +14,13 @@ from pathlib import Path
 import environ
 import os
 from pathlib import Path
+import django.db.models.deletion
+
+# Ensure backwards compatibility for legacy migrations referencing DB_CASCADE / DB_SET_NULL
+if not hasattr(django.db.models.deletion, 'DB_CASCADE'):
+    django.db.models.deletion.DB_CASCADE = django.db.models.deletion.CASCADE
+if not hasattr(django.db.models.deletion, 'DB_SET_NULL'):
+    django.db.models.deletion.DB_SET_NULL = django.db.models.deletion.SET_NULL
 
 env = environ.Env()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
