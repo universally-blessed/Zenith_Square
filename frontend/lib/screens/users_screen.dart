@@ -353,17 +353,40 @@ class _UsersScreenState extends State<UsersScreen>
   }
 
   void _handleRequest(String reqId, String action) async {
-    final success = await ApiService.handleCommitteeAction(
-      reqId,
-      action == 'approve' ? 'Approved' : 'Rejected',
-    );
-    if (success) {
+    try {
+      final success = await ApiService.handleCommitteeAction(
+        reqId,
+        action == 'approve' ? 'Approved' : 'Rejected',
+      );
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Request $action successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        _loadData();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to $action request. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Request $action successfully!')),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
-      _loadData();
     }
   }
 

@@ -324,7 +324,7 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
         )
 
     @transaction.atomic
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='action')
     def process_action(self, request, pk=None):
         action_type = request.data.get('action')
         if action_type in ['Approved', 'approve']:
@@ -332,6 +332,11 @@ class CommitteeChangeViewSet(viewsets.ModelViewSet):
         elif action_type in ['Rejected', 'reject']:
             return self.reject(request, pk=pk)
         return Response({'error': "Invalid action. Use 'Approved' or 'Rejected'."}, status=status.HTTP_400_BAD_REQUEST)
+
+    @transaction.atomic
+    @action(detail=True, methods=['post'])
+    def process_action_alias(self, request, pk=None):
+        return self.process_action(request, pk=pk)
 
     @transaction.atomic
     @action(detail=True, methods=['post'])
