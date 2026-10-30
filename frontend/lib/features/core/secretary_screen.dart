@@ -190,8 +190,8 @@ class _SecretaryHomeScreenState extends State<SecretaryHomeScreen> {
                   ),
                   _ActionItem(
                     'Maintenance Payment',
-                    Icons.groups_outlined,
-                    Colors.deepPurple,
+                    Icons.account_balance_wallet_outlined,
+                    Colors.indigo,
                     '/secretary-finance',
                   ),
                   _ActionItem(
@@ -226,14 +226,14 @@ class _SecretaryHomeScreenState extends State<SecretaryHomeScreen> {
                   ),
                   _ActionItem(
                     'Tenants',
-                    Icons.how_to_vote_outlined,
-                    Colors.purple,
+                    Icons.real_estate_agent_outlined,
+                    Colors.teal.shade700,
                     '/secretary-tenants',
                   ),
                   _ActionItem(
                     'Society Documents',
-                    Icons.how_to_vote_outlined,
-                    Colors.purple,
+                    Icons.folder_shared_outlined,
+                    Colors.blueGrey,
                     '/society-documents',
                   ),
                   if (hasSecurity)

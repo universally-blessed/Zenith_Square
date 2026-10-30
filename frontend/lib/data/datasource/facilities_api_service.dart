@@ -27,7 +27,7 @@ class FacilitiesApiService {
   static Future<List<dynamic>> fetchAmenityBookings(String amenityId) async {
     final token = await ApiService.getAccessToken();
     final res = await http.get(
-      Uri.parse('$baseUrl/amenities/bookings/'),
+      Uri.parse('$baseUrl/amenities/bookings/?amenity_id=$amenityId'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -39,16 +39,13 @@ class FacilitiesApiService {
       return all.where((b) {
         final status = (b['status'] ?? '').toString().toLowerCase();
         final isExpired = b['is_payment_expired'] == true;
-        final matchesAmenity =
-            b['amenity_id'].toString() == amenityId.toString();
 
-        // Count as taken if confirmed OR in an active pending payment hold
         final isOccupied =
             (status == 'confirmed' ||
                 status == 'pending_payment' ||
                 status == 'pending') &&
             !isExpired;
-        return matchesAmenity && isOccupied;
+        return isOccupied;
       }).toList();
     }
     return [];

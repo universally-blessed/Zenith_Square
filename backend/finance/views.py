@@ -68,7 +68,7 @@ class SettleMaintenancePaymentView(APIView):
         # Compute dynamic final amount including late fee
         society = bill.flat.block.society if (bill.flat and bill.flat.block) else None
         final_amount = bill.payable_amount
-        if bill.due_date < datetime.date.today() and society and society.late_fee_percent:
+        if bill.due_date < date.today() and society and society.late_fee_percent:
             late_fee = round((bill.payable_amount * Decimal(str(society.late_fee_percent))) / Decimal('100'), 2)
             final_amount += late_fee
 
@@ -135,11 +135,22 @@ class GenerateMaintenanceBillsView(APIView):
 
         for flat in flats:
             if not MaintenanceBill.objects.filter(flat=flat, bill_month=bill_month).exists():
+                # Direct lookup on Tenant model using flat_id and active status
+                tenant_record = Tenant.objects.filter(flat=flat, status='active').first()
+                primary_occ = Occupancy.objects.filter(flat=flat, is_primary=True).first()
+
+                # Rate priority: Tenant custom_maintenance -> Occupancy custom_rate -> Society standard_rate
+                payable_amt = society.standard_rate
+                if tenant_record and getattr(tenant_record, 'custom_maintenance', None) is not None:
+                    payable_amt = tenant_record.custom_maintenance
+                elif primary_occ and getattr(primary_occ, 'custom_rate', None) is not None:
+                    payable_amt = primary_occ.custom_rate
+
                 MaintenanceBill.objects.create(
                     bill_id=str(uuid.uuid4())[:6].upper(),
                     flat=flat,
                     bill_month=bill_month,
-                    payable_amount=society.standard_rate,
+                    payable_amount=payable_amt,
                     due_date=due_date,
                     status='pending'
                 )
@@ -153,7 +164,6 @@ class GenerateMaintenanceBillsView(APIView):
             'standard_rate': float(society.standard_rate),
             'late_fee_percent': float(society.late_fee_percent or 0)
         }, status=status.HTTP_201_CREATED)
-    
 
 # 4. Payment History for Resident
 class ResidentPaymentHistoryView(APIView):

@@ -226,7 +226,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
                     ),
                     const SizedBox(height: 14),
 
-                    _buildFieldLabel('Email Address (Optional)'),
+                    _buildFieldLabel('Email Address'),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _emailController,

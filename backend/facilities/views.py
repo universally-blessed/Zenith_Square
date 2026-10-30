@@ -142,16 +142,23 @@ class AmenityBookingsView(APIView):
         auto_expire_stale_bookings()
         role_name = request.user.role.role_name.lower() if request.user.role else 'resident'
         my_only = request.query_params.get('my', 'false').lower() == 'true'
+        amenity_id = request.query_params.get('amenity_id')
 
-        if my_only or role_name not in ['chairman', 'secretary', 'admin']:
+        # If a specific amenity_id is requested, return ALL society-wide bookings 
+        # for that amenity so overlap checking works for everyone (tenants & owners).
+        if amenity_id:
+            bookings = AmenityBooking.objects.filter(
+                amenity__amenity_id=amenity_id,
+                amenity__society=request.user.society
+            ).order_by('-booking_date')
+        elif my_only or role_name not in ['chairman', 'secretary', 'admin']:
             resident = Resident.objects.filter(user=request.user).first()
             bookings = AmenityBooking.objects.filter(resident=resident).order_by('-booking_date')
         else:
             bookings = AmenityBooking.objects.filter(amenity__society=request.user.society).order_by('-booking_date')
 
         return Response({'success': True, 'bookings': AmenityBookingSerializer(bookings, many=True).data}, status=status.HTTP_200_OK)
-
-
+    
 # 4. Confirm Payment (Chairman / Secretary verifies payment -> 'confirmed')
 class ConfirmAmenityPaymentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -230,8 +237,8 @@ class CancelAmenityBookingView(APIView):
 
     def patch(self, request, booking_id):
         role_name = request.user.role.role_name.lower() if request.user.role else ''
-        if role_name not in ['chairman', 'secretary', 'admin']:
-            return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
+        # if role_name not in ['chairman', 'secretary', 'admin']:
+        #     return Response({'success': False, 'error': 'Unauthorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         booking = AmenityBooking.objects.filter(booking_id=booking_id, amenity__society=request.user.society).first()
         if not booking:

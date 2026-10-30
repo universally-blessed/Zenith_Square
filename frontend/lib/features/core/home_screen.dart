@@ -137,7 +137,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ];
 
-          // Owner-only items
           if (!isTenant) {
             items.addAll([
               _ActionItem(
@@ -154,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _ActionItem(
                 'Society Documents',
-                Icons.description_outlined,
+                Icons.folder_shared_outlined,
                 Colors.indigo,
                 '/society-documents',
               ),

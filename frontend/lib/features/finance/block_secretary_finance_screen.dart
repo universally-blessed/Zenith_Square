@@ -60,7 +60,7 @@ class _PersonalUnitDueTab extends StatefulWidget {
 }
 
 class _PersonalUnitDueTabState extends State<_PersonalUnitDueTab> {
-  late Future<Map<String, dynamic>> _billFuture;
+  late Future _billFuture;
   bool _isProcessing = false;
 
   @override
@@ -124,7 +124,7 @@ class _PersonalUnitDueTabState extends State<_PersonalUnitDueTab> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
+    return FutureBuilder(
       future: _billFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -214,7 +214,7 @@ class _BlockDuesStatusTab extends StatefulWidget {
 }
 
 class _BlockDuesStatusTabState extends State<_BlockDuesStatusTab> {
-  late Future<Map<String, dynamic>> _reportFuture;
+  late Future _reportFuture;
   final TextEditingController _searchController = TextEditingController();
   String _selectedStatusFilter = 'ALL'; // Options: ALL, PAID, PENDING
 
@@ -238,7 +238,7 @@ class _BlockDuesStatusTabState extends State<_BlockDuesStatusTab> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
+    return FutureBuilder(
       future: _reportFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -315,60 +315,52 @@ class _BlockDuesStatusTabState extends State<_BlockDuesStatusTab> {
 
               // Filter Controls Header
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12.0,
-                  vertical: 8.0,
-                ),
-                child: Row(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Search Bar
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          hintText: 'Search Flat / Resident...',
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {});
-                                  },
-                                )
-                              : null,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Search Flat / Resident...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {});
+                                },
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-
-                    // Status Filter Chips
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'ALL', label: Text('All')),
-                        ButtonSegment(value: 'PAID', label: Text('Paid')),
-                        ButtonSegment(value: 'PENDING', label: Text('Pending')),
-                      ],
-                      selected: {_selectedStatusFilter},
-                      onSelectionChanged: (newSelection) {
-                        setState(() {
-                          _selectedStatusFilter = newSelection.first;
-                        });
-                      },
-                      style: ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: WidgetStateProperty.all(
-                          const EdgeInsets.symmetric(horizontal: 8),
-                        ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'ALL', label: Text('All')),
+                          ButtonSegment(value: 'PAID', label: Text('Paid')),
+                          ButtonSegment(
+                            value: 'PENDING',
+                            label: Text('Pending'),
+                          ),
+                        ],
+                        selected: {_selectedStatusFilter},
+                        onSelectionChanged: (newSelection) {
+                          setState(() {
+                            _selectedStatusFilter = newSelection.first;
+                          });
+                        },
                       ),
                     ),
                   ],
@@ -385,12 +377,14 @@ class _BlockDuesStatusTabState extends State<_BlockDuesStatusTab> {
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         itemCount: filteredBills.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
                           final item = filteredBills[i];
-                          final isPaid = item['status'] == 'paid';
+                          final isPaid =
+                              (item['status'] ?? '').toString().toLowerCase() ==
+                              'paid';
 
                           return Card(
                             elevation: 0,

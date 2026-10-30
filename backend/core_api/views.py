@@ -114,37 +114,45 @@ class VerifyOTPView(APIView):
             try:
                 # Perform atomic DB creation upon OTP success
                 with transaction.atomic():
-                    generated_user_id = str(uuid.uuid4())[:5].upper()
-                    default_role, _ = Roles.objects.get_or_create(role_id='R0002', defaults={'role_name': 'resident'})
+                    # 1. Clean UUIDs by removing hyphens (.hex) and slicing strictly to 5 characters
+                    generated_user_id = str(uuid.uuid4().hex)[:5].upper()
+                    generated_resident_id = str(uuid.uuid4().hex)[:5].upper() # Sliced to 5 chars
+                    generated_occupancy_id = str(uuid.uuid4().hex)[:5].upper()
 
-                    # 1. Create User as Active
+                    default_role, _ = Roles.objects.get_or_create(
+                        role_id='R0002', 
+                        defaults={'role_name': 'resident'}
+                    )
+
+                    # 2. Fetch Society & Create User
+                    society_obj = Societies.objects.get(society_id=data['societyId'])
                     user = Users.objects.create_user(
                         user_id=generated_user_id,
                         user_name=data['name'],
                         user_phone=data['phone'],
                         user_email=data['email'],
-                        society_id=data['societyId'],
+                        society=society_obj,
                         role=default_role,
                         is_active=True
                     )
                     user.set_password(data['password'])
                     user.save()
 
-                    # 2. Get Flat Object
+                    # 3. Get Flat Object
                     flat_obj = Flats.objects.get(flat_id=data['flat_id'])
 
-                    # 3. Create Resident
+                    # 4. Create Resident Record
                     resident = Resident.objects.create(
-                        resident_id=str(uuid.uuid4())[:6].upper(),
+                        resident_id=generated_resident_id,  # Guaranteed max 5 chars
                         user=user,
                         flat=flat_obj,
                         move_in_date=datetime.date.today()
                     )
 
-                    # 4. Create Occupancy
+                    # 5. Create Occupancy Record
                     has_primary = Occupancy.objects.filter(flat=flat_obj, is_primary=True).exists()
                     Occupancy.objects.create(
-                        occupancy_id=str(uuid.uuid4())[:5].upper(),
+                        occupancy_id=generated_occupancy_id,  # Guaranteed max 5 chars
                         flat=flat_obj,
                         resident=resident,
                         occupancy_type='Owner',
@@ -171,11 +179,28 @@ class LoginView(APIView):
         if not user.is_active:
             return Response({'success': False, 'error': 'Account not verified. Please verify your OTP.'}, status=status.HTTP_403_FORBIDDEN)
 
+        role_name = user.role.role_name.lower() if user.role else 'resident'
+
+        # Feature Flags Validation based on SocietyFeatures table
+        if user.society:
+            features = SocietyFeatures.objects.filter(society=user.society).first()
+            if features:
+                if (role_name in ['security', 'security guard', 'security_guard']) and not features.has_security:
+                    return Response({
+                        'success': False,
+                        'error': 'Security portal access is disabled for your society.'
+                    }, status=status.HTTP_403_FORBIDDEN)
+
+                if (role_name in ['block_secretary', 'block secretary']) and not features.has_block_secretary:
+                    return Response({
+                        'success': False,
+                        'error': 'Block Secretary portal access is disabled for your society.'
+                    }, status=status.HTTP_403_FORBIDDEN)
+
         # Update last_login timestamp in users table
         update_last_login(None, user)
 
         refresh = RefreshToken.for_user(user)
-        role_name = user.role.role_name.lower() if user.role else 'resident'
 
         return Response({
             'success': True,

@@ -225,6 +225,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
                   decoration: const InputDecoration(
                     hintText: 'yourname@example.com',
                     prefixIcon: Icon(Icons.email_outlined),

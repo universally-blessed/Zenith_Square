@@ -29,28 +29,42 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      // ApiService.login already calls saveAuthData() internally on success
       final response = await ApiService.login(
         _phoneController.text.trim(),
         _passwordController.text,
       );
 
       if (mounted) {
-        final role = (response['role'] ?? '').toString().toLowerCase();
-
-        String targetRoute = '/home';
-        if (role == 'chairman') {
-          targetRoute = '/chairman-home';
-        } else if (role == 'secretary') {
-          targetRoute = '/secretary-home';
-        } else if (role == 'block_secretary' || role == 'block secretary') {
-          targetRoute = '/block-secretary-home';
-        } else if (role == 'treasurer') {
-          targetRoute = '/treasurer-home';
-        } else if (role.contains('security') || role.contains('guard')) {
-          targetRoute = '/security-home';
+        if (response == null || response['success'] == false) {
+          final errorMessage =
+              response?['error'] ?? 'Login failed. Please try again.';
+          _showError(errorMessage);
+          return;
         }
 
-        // Clear the entire stack so no back buttons can ever appear on the home screen
+        // Normalize role name (converts 'Block Secretary' or 'block_secretary' -> 'blocksecretary')
+        final rawRole = (response['role'] ?? '').toString().toLowerCase();
+        final normalizedRole = rawRole.replaceAll(RegExp(r'[\s_]+'), '');
+
+        String targetRoute = '/home';
+
+        if (normalizedRole == 'chairman') {
+          targetRoute = '/chairman-home';
+        } else if (normalizedRole == 'secretary') {
+          targetRoute = '/secretary-home';
+        } else if (normalizedRole == 'blocksecretary') {
+          targetRoute = '/block-secretary-home';
+        } else if (normalizedRole == 'treasurer') {
+          targetRoute = '/treasurer-home';
+        } else if (normalizedRole.contains('security') ||
+            normalizedRole.contains('guard')) {
+          targetRoute = '/security-home';
+        } else if (normalizedRole == 'resident') {
+          targetRoute = '/home';
+        }
+
+        // Clear the navigation stack completely
         Navigator.pushNamedAndRemoveUntil(
           context,
           targetRoute,
@@ -59,10 +73,13 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showError(e.toString().replaceAll('Exception: ', ''));
+        final cleanError = e.toString().replaceAll('Exception: ', '');
+        _showError(cleanError);
       }
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 

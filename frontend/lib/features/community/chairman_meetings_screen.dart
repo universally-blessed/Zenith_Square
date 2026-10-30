@@ -264,6 +264,27 @@ class _ChairmanMeetingsTabState extends State<_ChairmanMeetingsTab> {
                             final picked = await showTimePicker(
                               context: context,
                               initialTime: selectedTime,
+                              useRootNavigator: true,
+                              initialEntryMode: TimePickerEntryMode.dial,
+                              builder: (BuildContext context, Widget? child) {
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    timePickerTheme: TimePickerThemeData(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                  child: MediaQuery(
+                                    data: MediaQuery.of(context).copyWith(
+                                      alwaysUse24HourFormat: false,
+                                      textScaler: const TextScaler.linear(1.0),
+                                      size: const Size(400, 800),
+                                    ),
+                                    child: child!,
+                                  ),
+                                );
+                              },
                             );
                             if (picked != null) {
                               setModalState(() => selectedTime = picked);

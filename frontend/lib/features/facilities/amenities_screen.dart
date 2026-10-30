@@ -32,8 +32,7 @@ class _AmenitiesScreenState extends State<AmenitiesScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () =>
-              Navigator.pop(context), // Replaces pushReplacementNamed
+          onPressed: () => Navigator.pop(context),
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -130,13 +129,18 @@ class _AmenitiesListTabState extends State<_AmenitiesListTab> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            a['amenity_name'] ?? '',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: Text(
+                              a['amenity_name'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -289,21 +293,24 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
   String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
 
+  List<dynamic> _getSlotsForSelectedDate() {
+    final dateStr = _formatDate(_selectedDate);
+    return _existingBookings.where((b) {
+      final rawDate = b['booking_date']?.toString() ?? '';
+      return rawDate == dateStr || rawDate.startsWith(dateStr);
+    }).toList();
+  }
+
   int _timeToMinutes(String timeStr) {
     try {
       final clean = timeStr.trim().split(' ')[0];
       final parts = clean.split(':');
-      return (int.parse(parts[0]) * 60) + int.parse(parts[1]);
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      return (hour * 60) + minute;
     } catch (_) {
-      return 0;
+      return -1;
     }
-  }
-
-  List<dynamic> _getSlotsForSelectedDate() {
-    final dateStr = _formatDate(_selectedDate);
-    return _existingBookings
-        .where((b) => b['booking_date'].toString().startsWith(dateStr))
-        .toList();
   }
 
   bool _checkOverlap() {
@@ -317,7 +324,6 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
       final bStart = _timeToMinutes(b['start_time'].toString());
       final bEnd = _timeToMinutes(b['end_time'].toString());
 
-      // Overlap: (SelectedStart < ExistingEnd) AND (SelectedEnd > ExistingStart)
       if (selectedStartMinutes < bEnd && selectedEndMinutes > bStart) {
         return true;
       }
@@ -395,11 +401,15 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Book ${widget.amenity['amenity_name']}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Book ${widget.amenity['amenity_name']}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
@@ -713,13 +723,18 @@ class _MyBookingsTabState extends State<_MyBookingsTab> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            b['amenity_name'] ?? 'Amenity',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                          Expanded(
+                            child: Text(
+                              b['amenity_name'] ?? 'Amenity',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,

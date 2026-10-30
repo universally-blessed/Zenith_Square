@@ -34,7 +34,7 @@ class _ChairmanAmenitiesScreenState extends State<ChairmanAmenitiesScreen>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () => Navigator.pop(context), // Clean pop
+          onPressed: () => Navigator.pop(context),
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -118,7 +118,6 @@ class _ChairmanBookingApprovalsTabState
                   ),
                   const SizedBox(height: 14),
 
-                  // Amount Input
                   _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
                     'Amount Paid (₹)',
                     isRequired: true,
@@ -152,7 +151,6 @@ class _ChairmanBookingApprovalsTabState
                   ),
                   const SizedBox(height: 14),
 
-                  // Receipt/Ref No Input
                   _ChairmanAmenitiesCatalogTabState.buildFieldLabel(
                     'Payment Ref / Receipt No. (Optional)',
                   ),
@@ -168,7 +166,6 @@ class _ChairmanBookingApprovalsTabState
                     ),
                   ),
 
-                  // Inline Error
                   if (dialogError != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -456,13 +453,18 @@ class _ChairmanBookingApprovalsTabState
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  b['amenity_name'] ?? 'Amenity',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                Expanded(
+                                  child: Text(
+                                    b['amenity_name'] ?? 'Amenity',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                                const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
@@ -515,7 +517,6 @@ class _ChairmanBookingApprovalsTabState
                                   ),
                                 ),
                               ),
-                            // Payment Deadline Banner for Temporary Hold
                             if (rawStatus == 'pending_payment' &&
                                 !isExpired) ...[
                               const SizedBox(height: 8),
@@ -719,7 +720,6 @@ class _ChairmanAmenitiesCatalogTabState
     );
   }
 
-  // Label Helper with Required Asterisk
   static Widget buildFieldLabel(String label, {bool isRequired = false}) {
     return RichText(
       text: TextSpan(
@@ -892,7 +892,6 @@ class _ChairmanAmenitiesCatalogTabState
                   ),
                   const SizedBox(height: 16),
 
-                  // INLINE ERROR BANNER
                   if (modalError != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -1067,13 +1066,18 @@ class _ChairmanAmenitiesCatalogTabState
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              a['amenity_name'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: Text(
+                                a['amenity_name'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 8),
                             InkWell(
                               onTap: () => _showChangeStatusDialog(
                                 a['amenity_id'],
@@ -1371,7 +1375,7 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                     trailing: TextButton(
                       onPressed: () async {
                         final picked = await showDatePicker(
-                          context: ctx, // <-- Use the modal's ctx here
+                          context: ctx,
                           initialDate: purchaseDate,
                           firstDate: DateTime(2000),
                           lastDate: DateTime.now(),
@@ -1385,7 +1389,6 @@ class _ChairmanAssetsTabState extends State<_ChairmanAssetsTab> {
                   ),
                   const SizedBox(height: 16),
 
-                  // INLINE ERROR BANNER
                   if (modalError != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -1791,13 +1794,19 @@ class _AssetMaintenanceSheetState extends State<_AssetMaintenanceSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${widget.asset['asset_name']} Logs',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              // FIXED OVERFLOW IN SCREENSHOT
+              Expanded(
+                child: Text(
+                  '${widget.asset['asset_name']} Logs',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.pop(context),
@@ -2145,13 +2154,18 @@ class _AmenityBookingModalState extends State<_AmenityBookingModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Book ${widget.amenity['amenity_name']}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Book ${widget.amenity['amenity_name']}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),

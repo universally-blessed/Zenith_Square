@@ -1,0 +1,82 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Panel 1 (Port 8081)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8081"]
+    },
+    {
+      "name": "Panel 2 (Port 8082)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8082"]
+    },
+    {
+      "name": "Panel 3 (Port 8083)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8083"]
+    },
+    {
+      "name": "Panel 4 (Port 8084)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8084"]
+    },
+    {
+      "name": "Panel 5 (Port 8085)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8085"]
+    },
+    {
+      "name": "Panel 6 (Port 8086)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8086"]
+    },
+    {
+      "name": "Panel 7 (Port 8087)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "cwd": "${workspaceFolder}/frontend",
+      "args": ["--web-port", "8087"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run All 7 Panels",
+      "configurations": [
+        "Panel 1 (Port 8081)",
+        "Panel 2 (Port 8082)",
+        "Panel 3 (Port 8083)",
+        "Panel 4 (Port 8084)",
+        "Panel 5 (Port 8085)",
+        "Panel 6 (Port 8086)",
+        "Panel 7 (Port 8087)"
+      ]
+    }
+  ]
+}

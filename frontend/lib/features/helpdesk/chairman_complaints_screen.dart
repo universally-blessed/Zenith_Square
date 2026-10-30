@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/datasource/helpdesk_api_service.dart';
+import './feedback_dialog.dart';
 
 class ChairmanComplaintsScreen extends StatefulWidget {
   const ChairmanComplaintsScreen({super.key});
@@ -677,108 +678,124 @@ class _SocietyFeedbacksTabState extends State<_SocietyFeedbacksTab> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<dynamic>>(
-      future: _feedbackFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await FeedbackDialog.show(context);
+          _loadFeedbacks(); // Refresh list after submitting
+        },
+        backgroundColor: Colors.blueAccent,
+        icon: const Icon(Icons.rate_review_outlined, color: Colors.white),
+        label: const Text(
+          'Give Feedback',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _feedbackFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  snapshot.error.toString().replaceAll('Exception: ', ''),
-                  style: const TextStyle(color: Colors.red),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _loadFeedbacks,
-                  child: const Text('Retry'),
-                ),
-              ],
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    snapshot.error.toString().replaceAll('Exception: ', ''),
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _loadFeedbacks,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final feedbacks = snapshot.data ?? [];
+          if (feedbacks.isEmpty) {
+            return const Center(
+              child: Text('No society feedback received yet.'),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => _loadFeedbacks(),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(12.0),
+              itemCount: feedbacks.length,
+              separatorBuilder: (ctx, i) => const SizedBox(height: 8),
+              itemBuilder: (ctx, i) {
+                final fb = feedbacks[i];
+                final rating = fb['rating'] ?? 5;
+                final residentName = fb['resident_name'] ?? 'Resident';
+
+                return Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              residentName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Row(
+                              children: List.generate(5, (index) {
+                                return Icon(
+                                  index < rating
+                                      ? Icons.star_rounded
+                                      : Icons.star_outline_rounded,
+                                  color: Colors.amber.shade700,
+                                  size: 18,
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          fb['feedback_text'] ?? '',
+                          style: TextStyle(
+                            color: Colors.grey.shade800,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const Divider(height: 16),
+                        Text(
+                          fb['created_at'] != null
+                              ? fb['created_at'].toString().substring(0, 10)
+                              : '',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           );
-        }
-
-        final feedbacks = snapshot.data ?? [];
-        if (feedbacks.isEmpty) {
-          return const Center(child: Text('No society feedback received yet.'));
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async => _loadFeedbacks(),
-          child: ListView.separated(
-            padding: const EdgeInsets.all(12.0),
-            itemCount: feedbacks.length,
-            separatorBuilder: (ctx, i) => const SizedBox(height: 8),
-            itemBuilder: (ctx, i) {
-              final fb = feedbacks[i];
-              final rating = fb['rating'] ?? 5;
-              final residentName = fb['resident_name'] ?? 'Resident';
-
-              return Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            residentName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          Row(
-                            children: List.generate(5, (index) {
-                              return Icon(
-                                index < rating
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                color: Colors.amber.shade700,
-                                size: 18,
-                              );
-                            }),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        fb['feedback_text'] ?? '',
-                        style: TextStyle(
-                          color: Colors.grey.shade800,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const Divider(height: 16),
-                      Text(
-                        fb['created_at'] != null
-                            ? fb['created_at'].toString().substring(0, 10)
-                            : '',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }
